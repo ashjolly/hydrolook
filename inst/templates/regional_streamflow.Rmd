@@ -69,7 +69,7 @@ calc_percentiles <- function(historical_flow, realtime_data) {
   
   if(class(realtime_data$Date) != "Date") stop("Date column is not in date class")
   
-  historical_flow %>%
+  df <- historical_flow %>%
     filter(yday(Date) == yday(Sys.Date())) %>%
     group_by(STATION_NUMBER) %>%
     nest() %>%
@@ -87,11 +87,19 @@ calc_percentiles <- function(historical_flow, realtime_data) {
       prctile == 1 ~ "High"
     )) %>%
     mutate(pct_bin = factor(pct_bin, levels = expected)) %>%
-    mutate(prctile = prctile*100) %>%
-    st_as_sf(coords = c("LONGITUDE", "LATITUDE"),
-             crs= 4326,
+    mutate(prctile = prctile*100)
+    #st_as_sf(coords = c("LONGITUDE", "LATITUDE"),
+    #         crs= 4326,
+    #         agr= "constant") %>%
+    #transform_bc_albers(sf_object)
+  
+  sp::coordinates(df) <- ~LONGITUDE + LATITUDE
+  proj4string(df) <- CRS("+proj=longlat +datum=NAD83")
+
+  t = st_as_sf(df, coords = c("LONGITUDE", "LATITUDE"), 
+                        crs = 4326,
              agr= "constant") %>%
-    transform_bc_albers()
+  transform_bc_albers()
 }
 ```
 
@@ -125,7 +133,8 @@ region_rivers <- st_intersection(nr_regions_sub, watercourses_5M())
 
 wsc_drainages <- ms_simplify(wsc_drainages())
 
-region_watershed <- st_intersection(select(nr_regions_sub, SHAPE), wsc_drainages()) %>%
+#region_watershed <- st_intersection(select(nr_regions_sub, SHAPE), wsc_drainages()) %>%
+region_watershed <- st_intersection(select(nr_regions_sub, geometry), wsc_drainages()) %>%
   group_by(SUB_DRAINAGE_AREA_NAME) %>%
   summarise() %>%
   ms_simplify()
@@ -135,7 +144,7 @@ stns_region <- st_join(stns_sf, nr_regions_sub, left = FALSE)
 city <- bc_cities() %>%
   st_join(region_borders, left = FALSE) %>%
   filter(POP_2000 == max(POP_2000)) %>%
-  rename(geometry = SHAPE) %>%
+  #rename(geometry = SHAPE) %>%
   mutate(
     CENTROID = map(geometry, st_centroid),
     COORDS = map(CENTROID, st_coordinates),
@@ -231,10 +240,11 @@ expected <- c("Not ranked", "Low","Much below normal (<10)",
    "Above normal (76-90)","Much above normal (>90)", "High")
 
 ## Calculate instantaneous percentiles 
-pct_flow_instant <- calc_percentiles(hist_flow, rl_data_instant) 
+pct_flow_instant <- calc_percentiles(historical_flow = hist_flow, 
+                                     realtime_data = rl_data_instant) 
 
 ## Calculate 24 hours percentiles
-pct_flow_last24 <- calc_percentiles(hist_flow, rl_data_last24)
+pct_flow_last24 <- calc_percentiles(historical_flow = hist_flow, realtime_data = rl_data_last24)
 
 pct_flow_7day_mean <- calc_percentiles(hist_flow_7day_mean, rl_data_7day_mean)
 ```
@@ -251,7 +261,7 @@ tm_shape(region_watershed) +
   tm_polygons(col = "grey90") +
 tm_shape(region_rivers) +
   tm_lines(col = "blue") +
-tm_shape(pct_flow_last24) +
+tm_shape(pct_flow_last24, projection=4326) +
   tm_dots(col = "pct_bin", size = 0.4, title = "Streamflow conditions \n based percentile quantities",
           palette = naww_pal) +
 tm_shape(city) +
