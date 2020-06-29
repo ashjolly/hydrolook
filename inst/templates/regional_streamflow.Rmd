@@ -94,12 +94,13 @@ calc_percentiles <- function(historical_flow, realtime_data) {
     #transform_bc_albers(sf_object)
   
   sp::coordinates(df) <- ~LONGITUDE + LATITUDE
-  proj4string(df) <- CRS("+proj=longlat +datum=NAD83")
+  sp::proj4string(df) <- sp::CRS("+proj=longlat +datum=NAD83")
 
-  t = st_as_sf(df, coords = c("LONGITUDE", "LATITUDE"), 
-                        crs = 4326,
-             agr= "constant") %>%
-  transform_bc_albers()
+  spatial = st_as_sf(df, coords = c("LONGITUDE", "LATITUDE"), 
+                        crs = 4326, agr= "constant") 
+  
+  spatial_spp <- st_transform(spatial, 4326)
+  spatial_spp <- transform_bc_albers(spatial)
 }
 ```
 
@@ -256,18 +257,37 @@ naww_pal <- c("#9c0ad1","#F90010","#B31F23","#FEA116","#08FA09","#46DED2","#0003
 ## Create a named vector
 named_naww_pal <- setNames(naww_pal, expected)
 
+plot_colours <- c("Not ranked" = "#9c0ad1",
+                                 "Low" = "#F90010",
+                      "Much below normal (<10)" = "#B31F23",
+                      "Below Normal (10-24)" = "#FEA116",
+                      "Normal (25-75)" = "#08FA09",
+                      "Above normal (76-90)" = "#46DED2",
+                      "Much above normal (>90)" = "#0003F6",
+                      "High" = "#000000"
+                      )
+
 
 tm_shape(region_watershed) +
   tm_polygons(col = "grey90") +
 tm_shape(region_rivers) +
   tm_lines(col = "blue") +
-tm_shape(pct_flow_last24, projection=4326) +
+tm_shape(pct_flow_last24, projection = 4326) +
   tm_dots(col = "pct_bin", size = 0.4, title = "Streamflow conditions \n based percentile quantities",
           palette = naww_pal) +
 tm_shape(city) +
   tm_dots(col = "black", size = 0.4, shape = 17) +
   tm_text("NAME", auto.placement = TRUE) +
   tm_style_white(main.title = paste0(params$region))
+
+# Plot using ggplot
+ggplot() +
+  geom_sf(data = region_watershed, fill = "grey95", colour = "grey90") +
+  geom_sf(data = pct_flow_last24, 
+          aes(geometry = geometry, colour = pct_flow_last24$pct_bin),
+          size = 3) +
+  scale_colour_manual(values = plot_colours)
+
 ```
 
 ### Percentile comparison
