@@ -380,6 +380,27 @@ pct_flow_instant_tbl_data <- pct_flow_instant %>%
 # Add in % median and mean flow
 # Add in watershed area
 # add in temperature
+
+
+ # BELOW DOESN"T WORK
+library(tidyhydat)
+library(tidyhydat.ws)
+
+#record <- tidyhydat::hy_stn_data_range() %>%
+#  dplyr::filter(DATA_TYPE == "T")
+
+#test <- realtime_dd(station_number = "08MF005")
+
+#unique(test$Parameter)
+token = token_ws()
+test_1 <- realtime_ws(station_number = pct_flow_instant_tbl_data$STATION_NUMBER, 
+                      token = token_ws()) %>%
+  dplyr::filter(Code == "TW") %>%
+  dplyr::mutate(date_dmy = as.Date(Date)) %>%
+  dplyr::filter(date_dmy == as.Date(Sys.Date())) %>% # filter for only today's date
+  dplyr::group_by(STATION_NUMBER, date_dmy) %>%
+  dplyr::summarise(mean_daily_temp = mean(Value, na.rm = TRUE))
+#unique(test_1$Code)
 # Add in value of Q7
 # Add in the Q min 7 day value for today's date
 
