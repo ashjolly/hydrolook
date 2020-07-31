@@ -14,17 +14,18 @@ params:
     value: latex
 geometry: margin=2cm
 header-includes:
+  - \usepackage{xcolor}
   - \usepackage{booktabs}
   - \usepackage{longtable}
   - \usepackage{array}
   - \usepackage{multirow}
-  - \usepackage[table]{xcolor}
   - \usepackage{wrapfig}
   - \usepackage{float}
   - \usepackage{colortbl}
   - \usepackage{pdflscape}
   - \usepackage{tabu}
   - \usepackage{threeparttable}
+  
 ---
 
 ---
@@ -42,6 +43,15 @@ library(rmapshaper)
 library(kableExtra)
 library(knitr)
 library(RcppRoll)
+library(shadowtext)
+library(bcmapsdata)
+library(ggplot2)
+library(dplyr)
+library(purrr)
+library(ggspatial)
+library(ggrepel)
+library(magick)
+library(ggsn)
 ```
  
 ```{r setup, include=FALSE}
@@ -154,6 +164,25 @@ city <- bc_cities() %>%
   ) %>%
   as_tibble() %>%
   st_sf() 
+
+ cities <- bc_cities() %>%
+  #filter(NAME %in% c("Atlin", "Fort Nelson", "Fort St. John", "Prince George",
+  #                   "Smithers", "Prince Rupert", "Masset", "Kitimat", "Kelowna",
+  #                   "Quesnel", "Williams Lake", "Kamloops", "Revelstoke",
+  #                   "Golden", "Cranbrook", "Nelson","Vancouver",
+  #                   "Victoria", "Nanaimo", "Campbell River", "Bella Coola")) %>%
+   mutate(
+    COORDS = map(geometry, st_coordinates),
+    COORDS_X = map_dbl(COORDS, 1),
+    COORDS_Y = map_dbl(COORDS, 2)
+   ) ## a bit of hack to get repelled labels
+  ## Some munging to individually set nudge for specific map lebels
+ cities$nudge_x <- 20000
+ cities$nudge_y <- 15000
+ 
+ cities_wc <- cities %>%
+   dplyr::filter(NAME %in% c("Vancouver", "Victoria", "Nanaimo", "Campbell River", "Bella Coola"))
+
 
 ```
 
@@ -268,17 +297,17 @@ plot_colours <- c("Not ranked" = "#9c0ad1",
                       )
 
 
-tm_shape(region_watershed) +
-  tm_polygons(col = "grey90") +
-tm_shape(region_rivers) +
-  tm_lines(col = "blue") +
-tm_shape(pct_flow_last24, projection = 4326) +
-  tm_dots(col = "pct_bin", size = 0.4, title = "Streamflow conditions \n based percentile quantities",
-          palette = naww_pal) +
-tm_shape(city) +
-  tm_dots(col = "black", size = 0.4, shape = 17) +
-  tm_text("NAME", auto.placement = TRUE) +
-  tm_style_white(main.title = paste0(params$region))
+#tm_shape(region_watershed) +
+#  tm_polygons(col = "grey90") +
+#tm_shape(region_rivers) +
+#  tm_lines(col = "blue") +
+#tm_shape(pct_flow_last24, projection = 4326) +
+#  tm_dots(col = "pct_bin", size = 0.4, title = "Streamflow conditions \n based percentile quantities",
+#          palette = naww_pal) +
+#tm_shape(city) +
+#  tm_dots(col = "black", size = 0.4, shape = 17) +
+#  tm_text("NAME", auto.placement = TRUE) +
+#  tm_style_white(main.title = paste0(params$region))
 
 # Plot using ggplot
 ggplot() +
@@ -286,7 +315,29 @@ ggplot() +
   geom_sf(data = pct_flow_last24, 
           aes(geometry = geometry, colour = pct_flow_last24$pct_bin),
           size = 3) +
-  scale_colour_manual(values = plot_colours)
+  scale_colour_manual(name = "PERCENT OF NORMAL", 
+                      values = plot_colours,
+                      drop = FALSE) +
+ geom_sf(data = cities_wc, size = 2, shape = 21, fill = "white", colour = "black") +
+  geom_shadowtext(data = cities_wc,
+    mapping = aes(
+      x = COORDS_X,
+      y = COORDS_Y,
+      label = NAME
+    ),
+    nudge_x = cities_wc$nudge_x,
+    nudge_y = cities_wc$nudge_y,
+    size = 3,
+    colour = "black",
+    bg.colour = "white"
+  ) +
+  annotation_north_arrow(location = "bl", which_north = "grid", pad_x = unit(1, "cm"), pad_y = unit(9, "cm")) +
+  #annotation_raster(bc_logo, 1987.509, 2283.774, 1771.908, 1790.425) +
+  theme_void() +
+  theme(panel.background = element_rect(fill = "aliceblue"),
+        legend.position = c(.16, .20),
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(5, 5, 5, 5))
 
 ```
 
@@ -306,30 +357,41 @@ num_year_data <- hy_stn_data_range(unique(pct_flow_instant$STATION_NUMBER)) %>%
 
 ## Grab only the latest flow and merge into one data frame
 pct_flow_instant_tbl_data <- pct_flow_instant %>%
-  st_set_geometry(NULL) %>%
-  select(STATION_NAME, STATION_NUMBER, Value, prctile) %>%
-  rename(`%tile-instant` = prctile, `Latest Q` = Value) %>%
+  #st_set_geometry(NULL) %>%
+  dplyr::select(STATION_NAME, STATION_NUMBER, Value, prctile) %>%
+  dplyr::rename(`%tile-instant` = prctile, `Latest Q` = Value) %>%
   select(-`%tile-instant`) %>% ##remove instant %tile
-  left_join(pct_flow_last24 %>%
-              st_set_geometry(NULL) %>%
-              select(STATION_NUMBER, prctile) %>%
-              rename(`%tile-last24` = prctile)) %>%
-  left_join(pct_flow_7day_mean %>%
-              st_set_geometry(NULL) %>%
-              filter(Date == Sys.Date()) %>%
-              select(STATION_NUMBER, prctile) %>%
-              rename(`%tile-7day_mean` = prctile)) %>%
+  st_join(pct_flow_last24 %>%
+              #st_set_geometry(NULL) %>%
+              dplyr::select(STATION_NUMBER, prctile) %>%
+              dplyr::rename(`%tile-last24` = prctile)) %>%
+  st_join(pct_flow_7day_mean %>%
+              #st_set_geometry(NULL) %>%
+              dplyr::filter(Date == Sys.Date()) %>%
+              dplyr::select(STATION_NUMBER, prctile) %>%
+              dplyr::rename(`%tile-7day_mean` = prctile)) %>%
   left_join(num_year_data, by = c("STATION_NUMBER")) %>%
-  arrange(STATION_NUMBER)
+  dplyr::arrange(STATION_NUMBER) %>%
+  dplyr::select(-STATION_NUMBER.x, -STATION_NUMBER.y, -geometry) 
+
+# Add in regulation status
+#reg_status <- 
+
+# Add in % median and mean flow
+# Add in watershed area
+# add in temperature
+# Add in value of Q7
+# Add in the Q min 7 day value for today's date
 
 
-if(params$table_format == "latex"){
+
+if (params$table_format == "latex"){
   pct_flow_instant_tbl_data %>%
     kable(format = "latex", booktabs = T, digits = 1) %>%
     kable_styling(font_size = 5,latex_options = c("HOLD_position"))
 }
 
-if(params$table_format == "html"){
+if (params$table_format == "html"){
   pct_flow_instant_tbl_data %>%
     kable(format = "html", digits = 2) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
@@ -342,11 +404,11 @@ if(params$table_format == "html"){
 If a location is not listed here there are no immediate low streamflow concerns. 
 ```{r}
 much_below_normal_tbl <- pct_flow_instant %>%
-  filter(pct_bin %in% c("Low","Much below normal (<10)")) %>%
-  st_set_geometry(NULL) %>%
-  select(STATION_NAME, STATION_NUMBER, Value, prctile) %>%
-  rename(`Latest Q` = Value, `%tile` = prctile) %>%
-  arrange(STATION_NUMBER)
+  dplyr::filter(pct_bin %in% c("Low","Much below normal (<10)")) %>%
+  #st_set_geometry(NULL) %>%
+  dplyr::select(STATION_NAME, STATION_NUMBER, Value, prctile) %>%
+  dplyr::rename(`Latest Q` = Value, `%tile` = prctile) %>%
+  dplyr::arrange(STATION_NUMBER)
 
 if(params$table_format == "latex"){
   much_below_normal_tbl %>%
