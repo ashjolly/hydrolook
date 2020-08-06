@@ -25,6 +25,9 @@ header-includes:
   - \usepackage{pdflscape}
   - \usepackage{tabu}
   - \usepackage{threeparttable}
+    \usepackage{pdflscape}
+  - \newcommand{\blandscape}{\begin{landscape}}
+  - \newcommand{\elandscape}{\end{landscape}}
   
 ---
 
@@ -342,6 +345,10 @@ ggplot() +
 
 ```
 
+\newpage
+\blandscape
+
+
 ### Percentile comparison
 The following are comparisons of two percentile summaries:
 
@@ -349,6 +356,7 @@ The following are comparisons of two percentile summaries:
 - %tile-7day_mean is percentile of the rolling 7 day average of daily mean discharge measurements to the 7 day rolling mean of the historical daily values. All 7 day means are calculated based on the **past 7 days**.
 
 These are evaluated separately in this document.
+
 
 ```{r}
 num_year_data <- hy_stn_data_range(unique(pct_flow_instant$STATION_NUMBER)) %>%
@@ -399,7 +407,7 @@ temp_station <- realtime_ws(station_number = pct_flow_instant_tbl_data$STATION_N
   dplyr::mutate(date_dmy = as.Date(Date)) %>%
   dplyr::filter(date_dmy == as.Date(Sys.Date())) %>% # filter for only today's date
   dplyr::group_by(STATION_NUMBER, date_dmy) %>%
-  dplyr::summarise(mean_daily_temp = mean(Value, na.rm = TRUE))
+  dplyr::summarise(mean_daily_temp = round(mean(Value, na.rm = TRUE), digits = 2))
 #unique(test_1$Code)
 
 # Add in value of Q7
@@ -412,23 +420,43 @@ extra_variables <- full_join(Q7, temp_station)
 
 
 # Add in the Q min 7 day value for today's date
+hist_flow_7day_mean_day <- hist_flow_7day_mean %>% 
+  dplyr::mutate(day_month = paste0(day(Date), "-", month(Date))) %>%
+  dplyr::filter(day_month == paste0(day(Sys.Date()), "-", month(Sys.Date()))) %>%
+  dplyr::group_by(STATION_NUMBER) %>%
+  summarize(min_Q7 = round(min(Value, na.rm = TRUE), digits = 2))
+  
+extra_variables <- full_join(extra_variables, hist_flow_7day_mean_day)
 
-
+table_out <- full_join(data.frame(pct_flow_instant_tbl_data), extra_variables) %>%
+  dplyr::select(-geometry, -X.tile.7day_mean, -date_dmy) %>%
+  dplyr::arrange(X.tile.last24) %>%
+  dplyr::rename(`Last 24 hour Q (m3/s)` = Latest.Q, 
+                `Latest 7 Day Q (m3/s)` = Q7_value,
+                `Percentile - Last 24 Hour Q (m3/s)` = X.tile.last24,
+                `ID` = STATION_NUMBER,
+                `Station Name` = STATION_NAME,
+                `Historic Min 7 Day Q (m3/s)` = min_Q7,
+                `Mean daily water temp (degC)` = mean_daily_temp,
+                `Record Length` = Record.Length, 
+                `Percentile - Q7` = Q7_prctile)
 
 if (params$table_format == "latex"){
-  pct_flow_instant_tbl_data %>%
+  table_out %>%
     kable(format = "latex", booktabs = T, digits = 1) %>%
-    kable_styling(font_size = 5,latex_options = c("HOLD_position"))
+    kable_styling(font_size = 5,latex_options = c("HOLD_position")) %>% 
+    kableExtra::row_spec(0, angle = 45) 
 }
 
 if (params$table_format == "html"){
-  pct_flow_instant_tbl_data %>%
+  table_out %>%
     kable(format = "html", digits = 2) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))  
 }
   
 ```
-
+\elandscape
+\newpage
 
 ## Stations **much below normal**
 If a location is not listed here there are no immediate low streamflow concerns. 
