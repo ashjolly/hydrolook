@@ -52,6 +52,7 @@ library(ggspatial)
 library(ggrepel)
 library(magick)
 library(ggsn)
+library(tidyhydat.ws)
 ```
  
 ```{r setup, include=FALSE}
@@ -208,7 +209,7 @@ rl_data_instant <- rl_data %>%
   filter(Date == Sys.Date()) %>% ## drop max values that aren't today
   ungroup()
 
-## Queery historical data
+## Query historical data
 ## NOTE: Should this be done with rl_data_recent$STATION_NUMBER?
 hist_flow <- hy_daily_flows(q_stns)
 ```
@@ -383,8 +384,7 @@ pct_flow_instant_tbl_data <- pct_flow_instant %>%
 
 
  # BELOW DOESN"T WORK
-library(tidyhydat)
-library(tidyhydat.ws)
+
 
 #record <- tidyhydat::hy_stn_data_range() %>%
 #  dplyr::filter(DATA_TYPE == "T")
@@ -393,7 +393,7 @@ library(tidyhydat.ws)
 
 #unique(test$Parameter)
 token = token_ws()
-test_1 <- realtime_ws(station_number = pct_flow_instant_tbl_data$STATION_NUMBER, 
+temp_station <- realtime_ws(station_number = pct_flow_instant_tbl_data$STATION_NUMBER, 
                       token = token_ws()) %>%
   dplyr::filter(Code == "TW") %>%
   dplyr::mutate(date_dmy = as.Date(Date)) %>%
@@ -401,7 +401,16 @@ test_1 <- realtime_ws(station_number = pct_flow_instant_tbl_data$STATION_NUMBER,
   dplyr::group_by(STATION_NUMBER, date_dmy) %>%
   dplyr::summarise(mean_daily_temp = mean(Value, na.rm = TRUE))
 #unique(test_1$Code)
+
 # Add in value of Q7
+Q7 <- pct_flow_7day_mean %>%
+  dplyr::filter(Date == Sys.Date()) %>%
+  dplyr::select(STATION_NUMBER, Date, Value, prctile, STATION_NAME) %>%
+  dplyr::rename(Q7_value = Value, Q7_prctile = prctile)
+
+extra_variables <- full_join(Q7, temp_station)
+
+
 # Add in the Q min 7 day value for today's date
 
 
