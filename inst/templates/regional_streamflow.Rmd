@@ -252,18 +252,22 @@ rl_data_last24 <- rl_data %>%
 ## Realtime 7 day average
 ## I took the realtime daily averages
 rl_data_7day_mean <- rl_data %>%
-  filter(Parameter == "Flow") %>%
-  mutate(Date = as.Date(Date)) %>%
-  group_by(Date, STATION_NUMBER) %>%
-  summarise(Value = mean(Value, na.rm = TRUE)) %>%
-  mutate(Value = roll_mean(Value, n = 7,na.rm = TRUE, fill = "right")) %>%
-  #filter(Date == Sys.Date()) %>%
-  ungroup()
-
+  dplyr::filter(Parameter == "Flow") %>%
+  dplyr::mutate(Date = as.Date(Date)) %>%
+  dplyr::group_by(STATION_NUMBER, Date) %>%
+  dplyr::summarise(DailyMean = mean(Value, na.rm = TRUE)) %>%
+  dplyr::ungroup() %>%
+  dplyr::group_by(STATION_NUMBER) %>%
+  dplyr::mutate(Value = zoo::rollapply(DailyMean, 7, align = 'right', fill=NA, mean, na.rm=TRUE, partial = TRUE)) %>%
+  dplyr::ungroup()
+  
 hist_flow_7day_mean <- hist_flow %>%
-  group_by(STATION_NUMBER) %>%
-  mutate(Value = roll_mean(Value, n = 7, na.rm = TRUE, fill = "right")) %>%
-  ungroup()
+  dplyr::group_by(STATION_NUMBER, Date) %>% # some values in the historic record with multime values for one day
+  dplyr::summarise(DailyMean = mean(Value, na.rm = TRUE)) %>%
+  dplyr::ungroup() %>%
+  dplyr::group_by(STATION_NUMBER) %>%
+  dplyr::mutate(Value = zoo::rollapply(DailyMean, 7, align = 'right', fill=NA, mean, na.rm=TRUE, partial = TRUE)) %>%
+  dplyr::ungroup()
 ```
 
 
@@ -278,9 +282,11 @@ pct_flow_instant <- calc_percentiles(historical_flow = hist_flow,
                                      realtime_data = rl_data_instant) 
 
 ## Calculate 24 hours percentiles
-pct_flow_last24 <- calc_percentiles(historical_flow = hist_flow, realtime_data = rl_data_last24)
+pct_flow_last24 <- calc_percentiles(historical_flow = hist_flow, 
+                                    realtime_data = rl_data_last24)
 
-pct_flow_7day_mean <- calc_percentiles(hist_flow_7day_mean, rl_data_7day_mean)
+pct_flow_7day_mean <- calc_percentiles(hist_flow_7day_mean, 
+                                       rl_data_7day_mean)
 ```
 
 ```{r output, fig.height = 5.8, fig.width=6.4, fig.align="center"}
@@ -387,19 +393,33 @@ pct_flow_instant_tbl_data <- pct_flow_instant %>%
 #reg_status <- 
 
 # Add in % median and mean flow
+# Find the mean for this day
+hist_flow_7day_mean_day <- hist_flow_7day_mean %>% 
+  dplyr::mutate(day_month = paste0(day(Date), "-", month(Date))) %>%
+  dplyr::filter(day_month == paste0(day(Sys.Date()), "-", month(Sys.Date()))) %>%
+  dplyr::group_by(STATION_NUMBER) %>%
+  dplyr::summarize(mean_Q7_forthisdate = round(mean(Value, na.rm = TRUE), digits = 2)) 
+
+# current percent of mean
+pct_flow_instant_tbl_data <- full_join(pct_flow_instant_tbl_data, hist_flow_7day_mean_day)
+
+hist_flow_7day_median_day <- hist_flow_7day_mean %>% 
+  dplyr::mutate(day_month = paste0(day(Date), "-", month(Date))) %>%
+  dplyr::filter(day_month == paste0(day(Sys.Date()), "-", month(Sys.Date()))) %>%
+  dplyr::group_by(STATION_NUMBER) %>%
+  dplyr::summarize(median_Q7_forthisdate = round(median(Value, na.rm = TRUE), digits = 2))
+
+# current percent of mean
+pct_flow_instant_tbl_data <- full_join(pct_flow_instant_tbl_data, hist_flow_7day_median_day)
+
 # Add in watershed area
-# add in temperature
+description <- hy_stations(station_number = pct_flow_instant_tbl_data$STATION_NUMBER) %>%
+      as.list()
+
+pct_flow_instant_tbl_data$basin_area <- description$DRAINAGE_AREA_GROSS
 
 
- # BELOW DOESN"T WORK
-
-
-#record <- tidyhydat::hy_stn_data_range() %>%
-#  dplyr::filter(DATA_TYPE == "T")
-
-#test <- realtime_dd(station_number = "08MF005")
-
-#unique(test$Parameter)
+# Add in the temperature
 token = token_ws()
 temp_station <- realtime_ws(station_number = pct_flow_instant_tbl_data$STATION_NUMBER, 
                       token = token_ws()) %>%
@@ -408,6 +428,8 @@ temp_station <- realtime_ws(station_number = pct_flow_instant_tbl_data$STATION_N
   dplyr::filter(date_dmy == as.Date(Sys.Date())) %>% # filter for only today's date
   dplyr::group_by(STATION_NUMBER, date_dmy) %>%
   dplyr::summarise(mean_daily_temp = round(mean(Value, na.rm = TRUE), digits = 2))
+
+pct_flow_instant_tbl_data <- full_join(pct_flow_instant_tbl_data, temp_station)
 #unique(test_1$Code)
 
 # Add in value of Q7
@@ -416,8 +438,12 @@ Q7 <- pct_flow_7day_mean %>%
   dplyr::select(STATION_NUMBER, Date, Value, prctile, STATION_NAME) %>%
   dplyr::rename(Q7_value = Value, Q7_prctile = prctile)
 
-extra_variables <- full_join(Q7, temp_station)
+pct_flow_instant_tbl_data <- full_join(as.data.frame(pct_flow_instant_tbl_data), Q7)
 
+# Calculate the percent of median and mean Q7
+pct_flow_instant_tbl_data <- pct_flow_instant_tbl_data %>%
+  dplyr::mutate(Per_Q7_median = round(Q7_value/median_Q7_forthisdate*100, digits = 0)) %>%
+  dplyr::mutate(Per_Q7_mean = round(Q7_value/mean_Q7_forthisdate*100, digits = 0))
 
 # Add in the Q min 7 day value for today's date
 hist_flow_7day_mean_day <- hist_flow_7day_mean %>% 
@@ -426,26 +452,69 @@ hist_flow_7day_mean_day <- hist_flow_7day_mean %>%
   dplyr::group_by(STATION_NUMBER) %>%
   summarize(min_Q7 = round(min(Value, na.rm = TRUE), digits = 2))
   
-extra_variables <- full_join(extra_variables, hist_flow_7day_mean_day)
+pct_flow_instant_tbl_data <- full_join(pct_flow_instant_tbl_data, hist_flow_7day_mean_day)
 
-table_out <- full_join(data.frame(pct_flow_instant_tbl_data), extra_variables) %>%
-  dplyr::select(-geometry, -X.tile.7day_mean, -date_dmy) %>%
-  dplyr::arrange(X.tile.last24) %>%
-  dplyr::rename(`Last 24 hour Q (m3/s)` = Latest.Q, 
+# Add in MAD
+long_term_mad <- hy_annual_stats(q_stns) %>%
+  filter(Sum_stat == "MEAN") %>%
+  spread(Sum_stat, Value) %>%
+  group_by(STATION_NUMBER) %>%
+  summarise(`MEAN MAD (m^3/s)` = round(mean(MEAN, na.rm = TRUE), digits = 2)) %>%
+  left_join(rl_data_instant, by = c("STATION_NUMBER")) %>%
+  mutate(`% MAD` = round((Value/`MEAN MAD (m^3/s)`)*100, digits = 2)) %>%
+  left_join(allstations[,1:2], by = c("STATION_NUMBER")) %>%
+  select(STATION_NAME, STATION_NUMBER, Value, `MEAN MAD (m^3/s)`, `% MAD`) %>%
+  rename(`Latest Q` = Value) %>%
+  arrange(STATION_NUMBER)
+
+pct_flow_instant_tbl_data <- full_join(pct_flow_instant_tbl_data, long_term_mad)
+
+# Assemble table to 
+table_out <- pct_flow_instant_tbl_data %>%
+  dplyr::select(-geometry,  -date_dmy, -`%tile-7day_mean`) %>%
+  dplyr::arrange(`%tile-last24`) %>%
+  dplyr::rename(`Last 24 hour Q (m3/s)` = `Latest Q`, 
                 `Latest 7 Day Q (m3/s)` = Q7_value,
-                `Percentile - Last 24 Hour Q (m3/s)` = X.tile.last24,
+                `Percentile - Last 24 Hour Q (m3/s)` = `%tile-last24`,
                 `ID` = STATION_NUMBER,
                 `Station Name` = STATION_NAME,
                 `Historic Min 7 Day Q (m3/s)` = min_Q7,
                 `Mean daily water temp (degC)` = mean_daily_temp,
-                `Record Length` = Record.Length, 
-                `Percentile - Q7` = Q7_prctile)
+                `Record Length` = `Record Length`, 
+                `Percentile - Q7` = Q7_prctile,
+                `Historic Mean Q7 for today` = mean_Q7_forthisdate,
+                `Historic Median Q7 for today` = median_Q7_forthisdate,
+                `Percent of Daily Median Q7 (%)` = Per_Q7_median,
+                `Percent of Daily Mean Q7 (%)` = Per_Q7_mean,
+                `Basin Area (km2)` = basin_area) %>%
+  dplyr::select(`Station Name`, `ID`, `Record Length`, `Basin Area (km2)`,
+                `Last 24 hour Q (m3/s)`, `Percentile - Last 24 Hour Q (m3/s)`, 
+                 `Latest 7 Day Q (m3/s)`, `Percentile - Q7`, `Historic Min 7 Day Q (m3/s)`, 
+                `Historic Mean Q7 for today`, `Percent of Daily Mean Q7 (%)`,
+                `Historic Median Q7 for today`, `Percent of Daily Median Q7 (%)`,
+                `MEAN MAD (m^3/s)`, `% MAD`, `Mean daily water temp (degC)`, `Date`) 
+
+date_annot <- unique(table_out$Date)
 
 if (params$table_format == "latex"){
   table_out %>%
-    kable(format = "latex", booktabs = T, digits = 1) %>%
-    kable_styling(font_size = 5,latex_options = c("HOLD_position")) %>% 
-    kableExtra::row_spec(0, angle = 45) 
+    dplyr::select(-Date) %>% # remove date to condense table
+    # Add in colours to show thresholds
+   # dplyr::mutate(Percentile_Q7 = cell_spec(table_out$`Percentile - Q7`, "latex", 
+  #                                          color = ifelse(table_out$`Percentile - Q7` < 10, "red", "blue"))) %>%
+    kable(format = "latex", booktabs = T, digits = 1, longtable = TRUE, align = 'c', 
+          caption = paste0(params$region, " Drought Statistics - ", date_annot)) %>%
+    kable_styling(font_size = 5, latex_options = c("HOLD_position")) %>% 
+    kable_styling(latex_options = c("striped", "hold_position", "repeat_header"), full_width = T) %>%
+    #kableExtra::row_spec(0, angle = 45) %>%
+    column_spec(3, border_left = T) %>%
+   # column_spec(5, border_left = T) %>%
+   # column_spec(7, border_left = T) %>%
+   # column_spec(14, border_left = T) %>%
+    #column_spec(16, border_left = T) %>%
+    column_spec(1, width = "2cm")
+    
+    
 }
 
 if (params$table_format == "html"){
