@@ -1,9 +1,9 @@
 ---
 output:
-  pdf_document:
-    fig_caption: yes
   html_document:
     toc: true
+    fig_caption: yes
+  pdf_document:
     fig_caption: yes
 params:
   region:
@@ -11,7 +11,7 @@ params:
   date:
     value: !r Sys.Date()
   table_format:
-    value: latex
+    value: html
 geometry: margin=2cm
 header-includes:
   - \usepackage{xcolor}
@@ -28,7 +28,6 @@ header-includes:
     \usepackage{pdflscape}
   - \newcommand{\blandscape}{\begin{landscape}}
   - \newcommand{\elandscape}{\end{landscape}}
-  
 ---
 
 ---
@@ -370,7 +369,8 @@ if(params$table_format == "latex"){
 }
 
 if(params$table_format == "html"){
-  much_below_normal_tbl %>%
+  as.data.frame(much_below_normal_tbl) %>%
+    dplyr::select(-geometry) %>%
     kable(format = "html", digits = 2) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
 }
@@ -564,6 +564,7 @@ if (params$table_format == "latex"){
 
 if (params$table_format == "html"){
   table_out %>%
+    dplyr::select(-Date) %>%
     kable(format = "html", digits = 2) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))  
 }
