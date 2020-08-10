@@ -131,6 +131,7 @@ stns_sf <-  st_as_sf(
     agr = "constant"
   ) %>%
   transform_bc_albers()
+
 ```
 
 
@@ -199,18 +200,18 @@ q_stns <- unique(stns_region$STATION_NUMBER) %>%
   filter(RECORD_LENGTH >=20) %>%
   pull(STATION_NUMBER)
 
-## Query realtime data
+# Query realtime data
 rl_data <- realtime_dd(q_stns)
 
 ## Find most recent instantaneous discharge value
 rl_data_instant <- rl_data %>%
-  filter(Parameter == "Flow") %>%
-  group_by(STATION_NUMBER) %>%
-  filter(Date == max(Date)) %>%
-  select(STATION_NUMBER, Date, Value) %>%
-  mutate(Date = as.Date(Date)) %>%
-  filter(Date == Sys.Date()) %>% ## drop max values that aren't today
-  ungroup()
+  dplyr::filter(Parameter == "Flow") %>%
+  dplyr::group_by(STATION_NUMBER) %>%
+  dplyr::filter(Date == max(Date)) %>%
+  dplyr::select(STATION_NUMBER, Date, Value) %>%
+  dplyr::mutate(Date = as.Date(Date)) %>%
+  dplyr::filter(Date == Sys.Date()) %>% ## drop max values that aren't today
+  dplyr::ungroup()
 
 ## Query historical data
 ## NOTE: Should this be done with rl_data_recent$STATION_NUMBER?
@@ -237,14 +238,14 @@ Below are the maps with percentile data for WSC stations:
 ```{r 24h}
 ## Find the average of the last 24 hours
 rl_data_last24 <- rl_data %>%
-  filter(Parameter == "Flow") %>%
-  group_by(STATION_NUMBER) %>%
-  filter(Date >= Sys.time() - 60*60*24) %>% ## all data from last 24 hours
-  select(STATION_NUMBER, Date, Value) %>%
-  mutate(Date = Sys.Date()) %>% ## label last twenty four hours as from today
-  group_by(Date, STATION_NUMBER) %>%
-  summarise(Value = mean(Value)) %>%
-  ungroup()
+  dplyr::filter(Parameter == "Flow") %>%
+  dplyr::group_by(STATION_NUMBER) %>%
+  dplyr::filter(Date >= Sys.time() - 60*60*24) %>% ## all data from last 24 hours
+  dplyr::select(STATION_NUMBER, Date, Value) %>%
+  dplyr::mutate(Date = Sys.Date()) %>% ## label last twenty four hours as from today
+  dplyr::group_by(Date, STATION_NUMBER) %>%
+  dplyr::summarise(Value = mean(Value)) %>%
+  dplyr::ungroup()
 ```
 
 
@@ -351,17 +352,52 @@ ggplot() +
 
 ```
 
+## Stations **much below normal**
+If a location is not listed here there are no immediate low streamflow concerns. 
+```{r}
+much_below_normal_tbl <- pct_flow_instant %>%
+  dplyr::filter(pct_bin %in% c("Low","Much below normal (<10)")) %>%
+  #st_set_geometry(NULL) %>%
+  dplyr::select(STATION_NAME, STATION_NUMBER, Value, prctile) %>%
+  dplyr::rename(`Latest Q` = Value, `%tile` = prctile) %>%
+  dplyr::arrange(`%tile`, STATION_NUMBER)
+
+if(params$table_format == "latex"){
+  as.data.frame(much_below_normal_tbl) %>%
+    dplyr::select(-geometry) %>%
+    kable(format = "latex", booktabs = T, digits = 2) %>%
+    kable_styling(font_size = 7,latex_options = c("HOLD_position"))
+}
+
+if(params$table_format == "html"){
+  much_below_normal_tbl %>%
+    kable(format = "html", digits = 2) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+}
+
+```
+
+
 \newpage
 \blandscape
 
+### Drought Statistic Summary
+The following table contains drought relevant statistics for all of the sites within the region.
 
-### Percentile comparison
-The following are comparisons of two percentile summaries:
+These statistics include:
 
-- %tile-last24 is percentile of the average of the last 24 hours of discharge measurements to the historical daily values
-- %tile-7day_mean is percentile of the rolling 7 day average of daily mean discharge measurements to the 7 day rolling mean of the historical daily values. All 7 day means are calculated based on the **past 7 days**.
+  - Last 24 hour Q: mean discharge taken over the last 24 hours (in m3/s)
+  - Percentile - Last 24 Hour Q: percentile of the average of the last 24 hours of discharge measurements as compared to the historical daily values
+  - Latest 7 Day Q: Rolling 7-day average of daily mean discharge for today's date. All 7 day means are calculated based on the **past 7 days**.
+  - Percentile - Q7:  Percentile of the rolling 7 day average of daily mean discharge measurements to the 7 day rolling mean of the historical daily values. 
+  - Historic Mean Q7: Value of the rolling 7-day averaged daily mean discharge value for today's date, calculated using the station's historic data (in m3/s).
+  - Percent of Daily Mean Q7: Percent of the Q7 for today's date compared to the mean Q7 value for today's date within the historic record of the station (i.e., Latest 7 Day Q/Historic Mean Q7 *100)
+  - Historic Median Q7: Value of the rolling 7-day averaged daily median discharge value for today's date, calculated using the station's historic data (in m3/s).
+  - Percent of Daily Median Q7: Percent of the Q7 for today's date compared to the median Q7 value for today's date within the historic record of the station (i.e., Latest 7 Day Q/Historic Median Q7 *100).
+  - Historic Min 7 Day Q: The minimum 7 day averaged mean daily discharge value for today's date within the historic record (in m3/s).
+  - MEAN MAD (m^3/s) and % MAD: Flow needs during the  summer will range from juvenile rearing flows near 10-20% (preferred) MAD to adult salmon/char passage flows (>20% MAD) required prior to spawning.  Sub-standard flows (<10% MAD) can affect fish populations by reducing the area and quality of riffle habitats that generate fish food and aeration.  Flows nearing 5% MAD are considered suboptimal for fish rearing and migration, indicate a degradation of instream habitat and may require restrictions on water use. 
+  - Mean Daily Water Temp: Mean daily water temperature for today's date. Temperatures greater than 20 degrees C can indicate increased stress on fish populations.
 
-These are evaluated separately in this document.
 
 
 ```{r}
@@ -390,9 +426,12 @@ pct_flow_instant_tbl_data <- pct_flow_instant %>%
   dplyr::select(-STATION_NUMBER.x, -STATION_NUMBER.y, -geometry) 
 
 # Add in regulation status
-#reg_status <- 
+regulation <- tidyhydat::hy_stn_regulation(station_number = q_stns) %>%
+  dplyr::mutate(regulation = ifelse(REGULATED == "TRUE", "Regulated", "Natural"))
 
-# Add in % median and mean flow
+pct_flow_instant_tbl_data <- full_join(pct_flow_instant_tbl_data, regulation %>% dplyr::select(STATION_NUMBER, regulation))
+
+## Add in % median and mean flow
 # Find the mean for this day
 hist_flow_7day_mean_day <- hist_flow_7day_mean %>% 
   dplyr::mutate(day_month = paste0(day(Date), "-", month(Date))) %>%
@@ -479,20 +518,25 @@ table_out <- pct_flow_instant_tbl_data %>%
                 `ID` = STATION_NUMBER,
                 `Station Name` = STATION_NAME,
                 `Historic Min 7 Day Q (m3/s)` = min_Q7,
-                `Mean daily water temp (degC)` = mean_daily_temp,
+                `Mean Daily Water Temp (degC)` = mean_daily_temp,
                 `Record Length` = `Record Length`, 
                 `Percentile - Q7` = Q7_prctile,
                 `Historic Mean Q7 for today` = mean_Q7_forthisdate,
                 `Historic Median Q7 for today` = median_Q7_forthisdate,
                 `Percent of Daily Median Q7 (%)` = Per_Q7_median,
                 `Percent of Daily Mean Q7 (%)` = Per_Q7_mean,
-                `Basin Area (km2)` = basin_area) %>%
-  dplyr::select(`Station Name`, `ID`, `Record Length`, `Basin Area (km2)`,
+                `Basin Area (km2)` = basin_area,
+                `Regulation Status` = regulation) %>%
+  dplyr::mutate(`Percent of Daily Mean Q7 (%; Historic Mean Q7 in m3/s)` = paste0(`Percent of Daily Mean Q7 (%)`, " (", `Historic Mean Q7 for today`, ")")) %>%
+  dplyr::mutate(`Percent of Daily Median Q7 (%; Historic Median Q7 in m3/s)` = paste0(`Percent of Daily Median Q7 (%)`, " (", `Historic Mean Q7 for today`, ")")) %>%
+  dplyr::select(-`Percent of Daily Mean Q7 (%)`, -`Historic Mean Q7 for today`, -`Percent of Daily Median Q7 (%)`, -`Historic Median Q7 for today`) %>%
+  dplyr::select(`Station Name`, `ID`, `Record Length`, `Basin Area (km2)`, `Regulation Status`,
                 `Last 24 hour Q (m3/s)`, `Percentile - Last 24 Hour Q (m3/s)`, 
-                 `Latest 7 Day Q (m3/s)`, `Percentile - Q7`, `Historic Min 7 Day Q (m3/s)`, 
-                `Historic Mean Q7 for today`, `Percent of Daily Mean Q7 (%)`,
-                `Historic Median Q7 for today`, `Percent of Daily Median Q7 (%)`,
-                `MEAN MAD (m^3/s)`, `% MAD`, `Mean daily water temp (degC)`, `Date`) 
+                `Latest 7 Day Q (m3/s)`, `Percentile - Q7`,  
+                `Percent of Daily Mean Q7 (%; Historic Mean Q7 in m3/s)`,
+                `Percent of Daily Median Q7 (%; Historic Median Q7 in m3/s)`,
+                `Historic Min 7 Day Q (m3/s)`,
+                `MEAN MAD (m^3/s)`, `% MAD`, `Mean Daily Water Temp (degC)`, `Date`)
 
 date_annot <- unique(table_out$Date)
 
@@ -503,16 +547,17 @@ if (params$table_format == "latex"){
    # dplyr::mutate(Percentile_Q7 = cell_spec(table_out$`Percentile - Q7`, "latex", 
   #                                          color = ifelse(table_out$`Percentile - Q7` < 10, "red", "blue"))) %>%
     kable(format = "latex", booktabs = T, digits = 1, longtable = TRUE, align = 'c', 
-          caption = paste0(params$region, " Drought Statistics - ", date_annot)) %>%
+          caption = paste0(params$region, " Drought Statistics - ", date_annot),
+          linesep = "\\addlinespace") %>%
     kable_styling(font_size = 5, latex_options = c("HOLD_position")) %>% 
     kable_styling(latex_options = c("striped", "hold_position", "repeat_header"), full_width = T) %>%
     #kableExtra::row_spec(0, angle = 45) %>%
-    column_spec(3, border_left = T) %>%
+    column_spec(6, width = "1cm", border_left = T) %>%
    # column_spec(5, border_left = T) %>%
    # column_spec(7, border_left = T) %>%
    # column_spec(14, border_left = T) %>%
     #column_spec(16, border_left = T) %>%
-    column_spec(1, width = "2cm")
+    column_spec(1, width = "3cm")
     
     
 }
@@ -526,62 +571,6 @@ if (params$table_format == "html"){
 ```
 \elandscape
 \newpage
-
-## Stations **much below normal**
-If a location is not listed here there are no immediate low streamflow concerns. 
-```{r}
-much_below_normal_tbl <- pct_flow_instant %>%
-  dplyr::filter(pct_bin %in% c("Low","Much below normal (<10)")) %>%
-  #st_set_geometry(NULL) %>%
-  dplyr::select(STATION_NAME, STATION_NUMBER, Value, prctile) %>%
-  dplyr::rename(`Latest Q` = Value, `%tile` = prctile) %>%
-  dplyr::arrange(STATION_NUMBER)
-
-if(params$table_format == "latex"){
-  much_below_normal_tbl %>%
-    kable(format = "latex", booktabs = T, digits = 2) %>%
-    kable_styling(font_size = 7,latex_options = c("HOLD_position"))
-}
-
-if(params$table_format == "html"){
-  much_below_normal_tbl %>%
-    kable(format = "html", digits = 2) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
-}
-
-```
-
-## Long-term Mean Annual Discharge (%MAD)
-
-Flow needs during the  summer will range from juvenile rearing flows near 10-20 % (preferred) MAD to adult salmon/char passage flows  (>20%LT MAD) required prior to spawning.  Sub-standard flows (<10%LT MAD) can affect fish populations by reducing the area and quality of riffle habitats that generate fish food and aeration.  Flows nearing 5%LT MAD  are considered suboptimal for fish rearing and migration, indicate a degradation of instream habitat and may require  restrictions on water use. 
-
-```{r mad}
-## Calculate %MAD
-long_term_mad <- hy_annual_stats(q_stns) %>%
-  filter(Sum_stat == "MEAN") %>%
-  spread(Sum_stat, Value) %>%
-  group_by(STATION_NUMBER) %>%
-  summarise(`MEAN MAD (m^3/s)` = mean(MEAN, na.rm = TRUE)) %>%
-  left_join(rl_data_instant, by = c("STATION_NUMBER")) %>%
-  mutate(`% MAD` = (Value/`MEAN MAD (m^3/s)`)*100) %>%
-  left_join(allstations[,1:2], by = c("STATION_NUMBER")) %>%
-  select(STATION_NAME, STATION_NUMBER, Value, `MEAN MAD (m^3/s)`, `% MAD`) %>%
-  rename(`Latest Q` = Value) %>%
-  arrange(STATION_NUMBER)
-
-if(params$table_format == "latex"){
-   long_term_mad %>%
-    kable(format = "latex", booktabs = T, digits = 2) %>%
-    kable_styling(font_size = 7,latex_options = c("HOLD_position"))
-}
-
-if(params$table_format == "html"){
-   long_term_mad %>%
-    kable(format = "html", digits = 2) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
-}
-```
-
 
 
 
