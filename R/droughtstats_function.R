@@ -136,16 +136,16 @@ drought_statistics <- function(stations){
   select(-`%tile-instant`) %>% ##remove instant %tile
   st_join(pct_flow_last24 %>%
             #st_set_geometry(NULL) %>%
-            dplyr::select(STATION_NUMBER, prctile, pct_bin) %>%
+            dplyr::select(prctile, pct_bin) %>%
             dplyr::rename(`%tile-last24` = prctile, pct_bin_last24 = pct_bin)) %>%
   st_join(pct_flow_7day_mean %>%
             #st_set_geometry(NULL) %>%
             dplyr::filter(Date == Sys.Date()) %>%
-            dplyr::select(STATION_NUMBER, prctile, pct_bin) %>%
+            dplyr::select(prctile, pct_bin) %>%
             dplyr::rename(`%tile-7day_mean` = prctile, pct_bin_7day = pct_bin)) %>%
   left_join(num_year_data, by = c("STATION_NUMBER")) %>%
-  dplyr::arrange(STATION_NUMBER) %>%
-  dplyr::select(-STATION_NUMBER.x, -STATION_NUMBER.y, -geometry)
+  dplyr::arrange(STATION_NUMBER)
+  #dplyr::select(-STATION_NUMBER.x, -STATION_NUMBER.y, -geometry)
 
  # Add in regulation status
  regulation <- tidyhydat::hy_stn_regulation(station_number = q_stns) %>%
@@ -175,9 +175,12 @@ drought_statistics <- function(stations){
 
  # Add in watershed area
  description <- hy_stations(station_number = pct_flow_instant_tbl_data$STATION_NUMBER) %>%
-  as.list()
+  as.list() %>%
+  dplyr::bind_rows() %>%
+  dplyr::select(STATION_NUMBER, STATION_NAME, DRAINAGE_AREA_GROSS) %>%
+  dplyr::rename(basin_area = DRAINAGE_AREA_GROSS)
 
- pct_flow_instant_tbl_data$basin_area <- description$DRAINAGE_AREA_GROSS
+ pct_flow_instant_tbl_data <- full_join(pct_flow_instant_tbl_data, description)
 
  # Add in the temperature
  #token = token_ws()
