@@ -64,13 +64,17 @@ source("C:/Users/AJOLLYMO/RProjects/hydrolook/R/droughtstats_function.R")
 
 ## Knitr options dependent on type of document
 if(params$table_format == "latex"){
-  opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, 
-                      fig.width = 8, fig.height = 8, fig.path = file.path("report/regional_streamflow/"))
+  opts_chunk$set(echo = FALSE, 
+                 warning = FALSE, 
+                 message = FALSE, 
+                 fig.width = 8, fig.height = 8, fig.path = file.path("report/regional_streamflow/"))
 }
 
 if(params$table_format == "html"){
-  opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, 
-                      fig.width = 8, fig.height = 8)
+  opts_chunk$set(echo = FALSE, 
+                 warning = FALSE, 
+                 message = FALSE, 
+                 fig.width = 8, fig.height = 8)
 }
 
 options(knitr.table.format = params$table_format)
@@ -151,7 +155,7 @@ city <- bc_cities() %>%
 
 ```
 
-```{r analysis_instant}
+```{r analysisinstant}
 ## All stations from the specified region, that are flow and 
 ## have a record longer than 20 years
 stations <- stns_region$STATION_NUMBER
@@ -163,7 +167,7 @@ date_annot <- unique(table_out$Date)
 ```
 
 This report was generated on
-```{r, results='asis'}
+```{r date, results='asis'}
 cat(format(Sys.Date(), '%d %B, %Y'))
 ```
 
@@ -208,7 +212,7 @@ ggplot() +
   #        aes(geometry = geometry, colour = pct_flow_last24$pct_bin),
   #        size = 3) +
     geom_sf(data = table_out, 
-          aes(geometry = geometry, colour = pct_bin_last24),
+          aes(geometry = geometry, colour = pct_bin_7day),
           size = 3) +
   scale_colour_manual(name = "PERCENT OF NORMAL", 
                       values = plot_colours,
@@ -242,7 +246,7 @@ ggplot() +
 ### Stations **much below normal** - Percentiles
 
 The table below lists stations that are below their 10th percentile in terms of the last 24 hours of discharge data. If a location is not listed here there are no immediate low streamflow concerns. 
-```{r below_normal}
+```{r belownormal}
 much_below_normal_tbl <- as.data.frame(table_out) %>%
   dplyr::filter(pct_bin_last24 %in% c("Low","Much below normal (<10)")) %>%
   dplyr::select(`Station Name`, ID, `Record Length`, `Basin Area (km2)`, `Regulation Status`, 
@@ -440,7 +444,7 @@ These statistics include:
   - **Mean Daily Water Temp**: Mean daily water temperature for today's date. Temperatures greater than 20 degrees C can indicate increased stress on fish populations.
 
 
-```{r stats_table}
+```{r statstable}
 
 
 
