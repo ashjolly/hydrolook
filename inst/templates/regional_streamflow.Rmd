@@ -123,9 +123,9 @@ stns_region <- st_join(stns_sf, nr_regions_sub, left = FALSE)
 
 city <- bc_cities() %>%
   st_join(region_borders, left = FALSE) %>%
-  filter(POP_2000 == max(POP_2000)) %>%
+  dplyr::filter(POP_2000 == max(POP_2000)) %>%
   #rename(geometry = SHAPE) %>%
-  mutate(
+  dplyr::mutate(
     CENTROID = map(geometry, st_centroid),
     COORDS = map(CENTROID, st_coordinates),
     COORDS_X = map_dbl(COORDS, 1),
@@ -160,7 +160,7 @@ city <- bc_cities() %>%
 ## have a record longer than 20 years
 stations <- stns_region$STATION_NUMBER
 
-table_out <- drought_statistics(stations)
+table_out <- drought_statistics(stations) 
 
 date_annot <- unique(table_out$Date)
  
@@ -171,7 +171,7 @@ This report was generated on
 cat(format(Sys.Date(), '%d %B, %Y'))
 ```
 
-## Percentiles of Historical Flow - Last 24 Hours of Discharge
+## Percentiles of Historical Flow - 7 Day Average Streamflow
 
 The information is taken from real time data recorded at WSC stations and is based on percentiles of long term  historical flows for that day. A percentile is a value on a scale of one hundred that indicates the percent of a distribution that is equal to or below it. In general:
 
@@ -181,7 +181,7 @@ The information is taken from real time data recorded at WSC stations and is bas
 - A streamflow which is less than 10 percentile is considered much below normal
 - The flow category "Low" indicates that the estimated streamflow is the lowest value ever measured for the day of the year
 
-The below map shows percentile data for WSC stations, using the average of the last 24 hours of discharge data from each station:
+The below map shows percentile data for WSC stations using the rolling average of the last 7 days of discharge data from each station:
 
 ```{r output, fig.height = 5.8, fig.width=6.4, fig.align="center"}
 
@@ -190,13 +190,13 @@ expected <- c("Not ranked", "Low","Much below normal (<10)",
    "Below Normal (10-24)", "Normal (25-75)", 
    "Above normal (76-90)","Much above normal (>90)", "High")
 
-naww_pal <- c("#9c0ad1","#F90010","#B31F23","#FEA116","#08FA09","#46DED2","#0003F6","#000000")
+naww_pal <- c("#FFFFFF","#F90010","#B31F23","#FEA116","#08FA09","#46DED2","#0003F6","#000000")
 
 ## Create a named vector
 named_naww_pal <- setNames(naww_pal, expected)
 
-plot_colours <- c("Not ranked" = "#9c0ad1",
-                                 "Low" = "#F90010",
+plot_colours <- c("Not ranked" = "#FFFFFF",
+                      "Low" = "#F90010",
                       "Much below normal (<10)" = "#B31F23",
                       "Below Normal (10-24)" = "#FEA116",
                       "Normal (25-75)" = "#08FA09",
@@ -248,11 +248,12 @@ ggplot() +
 The table below lists stations that are below their 10th percentile in terms of the last 24 hours of discharge data. If a location is not listed here there are no immediate low streamflow concerns. 
 ```{r belownormal}
 much_below_normal_tbl <- as.data.frame(table_out) %>%
-  dplyr::filter(pct_bin_last24 %in% c("Low","Much below normal (<10)")) %>%
+  dplyr::filter(pct_bin_24hours %in% c("Low","Much below normal (<10)")) %>%
   dplyr::select(`Station Name`, ID, `Record Length`, `Basin Area (km2)`, `Regulation Status`, 
-                `Last 24 hour Q (m3/s)`, `Percentile - Last 24 Hour Q`, pct_bin_last24,
+                `Last 24 hour Q (m3/s)`, `Percentile - Last 24 Hour Q`, pct_bin_24hours,
                 `Latest 7 Day Q (m3/s)`, `Percentile - Q7`, pct_bin_7day) %>%
-  dplyr::rename(`Percentile Category - Last 24 Hour Q` = pct_bin_last24, `Percentile Category - 7 Day Q` = pct_bin_7day) %>%
+  dplyr::rename(`Percentile Category - Last 24 Hour Q` = pct_bin_24hours, 
+                `Percentile Category - 7 Day Q` = pct_bin_7day) %>%
   dplyr::arrange(`Percentile - Last 24 Hour Q`, `Percentile - Q7`)
 
 #date_annot <- unique(much_below_normal_tbl$Date)
@@ -272,7 +273,7 @@ if (params$table_format == "latex"){
 }
 
 if (params$table_format == "html"){
-  much_below_normal_tbl %>%
+  #much_below_normal_tbl %>%
     #dplyr::mutate(`Percentile Category - Last 24 Hour Q` = cell_spec(`Percentile Category - Last 24 Hour Q`, "html", 
     #                                                                 color = ifelse(`Percentile Category - Last 24 Hour Q`  == "Low", "#F90010",
     #                                                       ifelse(`Percentile Category - Last 24 Hour Q` == "Much below normal (<10)", "#B31F23" ,
@@ -281,12 +282,22 @@ if (params$table_format == "html"){
     #                                                                            ifelse(`Percentile Category - Last 24 Hour Q` == "Above normal (76-90)" , "#46DED2", 
     #                                                                                   ifelse(`Percentile Category - Last 24 Hour Q` == "Much above normal (>90)" , "#0003F6",
     #                                                                                          "#000000")))))))) %>%
-    kable(format = "html", 
+    #kable(format = "html", 
+    #      digits = 2, 
+    #      align = rep('c'), 
+    #      booktabs = T,
+    #      caption = paste0(params$region, " Low Flow Stations - ", date_annot)) %>%
+    #kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+  
+  
+  much_below_normal_tbl %>%
+   kable(format = "html", 
           digits = 2, 
           align = rep('c'), 
-          booktabs = T,
-          caption = paste0(params$region, " Low Flow Stations - ", date_annot)) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+          booktabs = T) %>%
+          #caption = paste0(params$region, " Low Flow Stations - ", date_annot)) %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+  
 }
 
 ```
@@ -298,21 +309,33 @@ Environmental flow needs for fish  during the summer will range from juvenile re
 
 ``` {r MADmap, fig.height = 5.8, fig.width=6.4, fig.align="center"}
 
+#plot_colours_MAD <-  c("Not ranked" = "#FFFFFF", # white for not ranked
+#                      "<1%" = "#F90010",
+#                      "Much below normal (<10)" = "#B31F23",
+#                      "Below Normal (10-24)" = "#FEA116",
+#                      "Normal (25-75)" = "#08FA09",
+#                      "Above normal (76-90)" = "#46DED2",
+#                      "Much above normal (>90)" = "#0003F6",
+#                      "High" = "#000000"
+#                      )
+
 MAD_below <- as.data.frame(table_out) %>%
-  dplyr::select(`Station Name`, ID, `Record Length`, `Basin Area (km2)`, `Regulation Status`, `% MAD`) %>%
+  dplyr::select(`Station Name`, ID, `Regulation Status`, `Latest 7 Day Q (m3/s)`, `% MAD`, `MEAN MAD (m^3/s)`) %>%
   dplyr::filter(`% MAD` <= 10) %>%
   dplyr::arrange(`% MAD`)
 
+table_MAD <- table_out %>% 
+  dplyr::arrange(as.numeric(`% MAD`))
 
 ggplot() +
   geom_sf(data = region_watershed, fill = "grey95", colour = "grey90") +
   #geom_sf(data = pct_flow_last24, 
   #        aes(geometry = geometry, colour = pct_flow_last24$pct_bin),
   #        size = 3) +
-    geom_sf(data = table_out, 
-          aes(geometry = geometry, colour = `% MAD`),
+    geom_sf(data = table_MAD, 
+          aes(geometry = geometry, colour = MAD_bin), # NEED TO DO MAD BIN!!!
           size = 3) +
- # scale_colour_manual(name = "PERCENT OF NORMAL", 
+ # scale_colour_manual(name = "% MAD", 
 #                      values = plot_colours,
 #                      drop = FALSE) +
  geom_sf(data = cities_wc, size = 2, shape = 21, fill = "white", colour = "black") +
@@ -371,8 +394,8 @@ if (params$table_format == "html"){
     kable(format = "html", 
           digits = 2, 
           align = rep('c'), 
-          booktabs = T,
-          caption = paste0(params$region, "Stations Below 10% MAD - ", date_annot)) %>%
+          booktabs = T) %>%
+          #caption = paste0(params$region, "Stations Below 10% MAD - ", date_annot)) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
 }
 
@@ -419,8 +442,8 @@ if (params$table_format == "html"){
     kable(format = "html", 
           digits = 2, 
           align = rep('c'), 
-          booktabs = T,
-          caption = paste0(params$region, "Stations Above 18degC Water Temp - ", date_annot)) %>%
+          booktabs = T) %>%
+          #caption = paste0(params$region, "Stations Above 18degC Water Temp - ", date_annot)) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
 }
 
@@ -480,8 +503,8 @@ if (params$table_format == "html"){
     kable(format = "html", 
           digits = 2, 
           align = rep('c'), 
-          booktabs = T,
-          caption = paste0(params$region, " Drought Statistics - ", date_annot))  %>%
+          booktabs = T) %>%
+          #caption = paste0(params$region, " Drought Statistics - ", date_annot))  %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))  
 }
   
