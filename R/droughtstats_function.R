@@ -35,14 +35,14 @@ calc_percentiles <- function(historical_flow, realtime_data, expected,...) {
   #         agr= "constant") %>%
   #transform_bc_albers(sf_object)
 
-  sp::coordinates(df) <- ~LONGITUDE + LATITUDE
-  sp::proj4string(df) <- sp::CRS("+proj=longlat +datum=NAD83")
+  #sp::coordinates(df) <- ~LONGITUDE + LATITUDE
+  #sp::proj4string(df) <- sp::CRS("+proj=longlat +datum=NAD83")
 
-  spatial = st_as_sf(df, coords = c("LONGITUDE", "LATITUDE"),
-                     crs = 4326, agr= "constant")
+  #spatial = st_as_sf(df, coords = c("LONGITUDE", "LATITUDE"),
+  #                   crs = 4326, agr= "constant")
 
-  spatial_spp <- st_transform(spatial, 4326)
-  spatial_spp <- transform_bc_albers(spatial)
+  #spatial_spp <- st_transform(spatial, 4326)
+  #spatial_spp <- transform_bc_albers(spatial)
 }
 
 
@@ -136,14 +136,14 @@ drought_statistics <- function(stations){
  ## Grab only the latest flow and merge into one data frame
  pct_flow_instant_tbl_data <- pct_flow_instant %>%
   #st_set_geometry(NULL) %>%
-  dplyr::select(STATION_NAME, STATION_NUMBER, Q_instant, prctile_inst) %>%
+  dplyr::select(STATION_NAME, STATION_NUMBER, Q_instant, prctile_inst, LATITUDE, LONGITUDE) %>%
   dplyr::rename(`%tile-instant` = prctile_inst, `Instant Q` = Q_instant) %>%
   select(-`%tile-instant`) %>% ##remove instant %tile
-  st_join(pct_flow_last24 %>%
+   full_join(pct_flow_last24 %>%
             #st_set_geometry(NULL) %>%
             dplyr::select(Q_24hours, prctile_24hours, pct_bin_24hours) %>%
             dplyr::rename(`%tile-last24` = prctile_24hours)) %>%
-  st_join(pct_flow_7day_mean %>%
+   full_join(pct_flow_7day_mean %>%
             #st_set_geometry(NULL) %>%
             dplyr::filter(Date == Sys.Date()) %>%
             dplyr::select(`%tile-7day_mean`, pct_bin_7day, Q_7day)) %>%
@@ -224,8 +224,9 @@ drought_statistics <- function(stations){
    dplyr::filter(date_dmy %in% c(seq(as.Date(Sys.Date())-6, as.Date(Sys.Date()), by = "day"))) %>% # filter for the last seven days of data from today's date
    dplyr::filter(Value >= 23) %>%
    dplyr::mutate(`Was the site warmer than 23degC in the last 7 days?` = "Yes") %>%
+   dplyr::mutate(Date_format = format(date_dmy, "%b %d")) %>%
    dplyr::group_by(STATION_NUMBER) %>%
-   dplyr::mutate(Dates_above23threshold = list(paste0(unique(date_dmy)))) %>%
+   dplyr::mutate(Dates_above23threshold = list(paste0(unique(Date_format)))) %>%
    dplyr::select(STATION_NUMBER, `Was the site warmer than 23degC in the last 7 days?`, Dates_above23threshold) %>%
    unique()
 
@@ -235,10 +236,12 @@ drought_statistics <- function(stations){
    dplyr::filter(date_dmy %in% c(seq(as.Date(Sys.Date())-6, as.Date(Sys.Date()), by = "day"))) %>% # filter for the last seven days of data from today's date
    dplyr::filter(Value >= 18) %>%
    dplyr::mutate(`Was the site warmer than 18degC in the last 7 days?` = "Yes") %>%
+   dplyr::mutate(Date_format = format(date_dmy, "%b %d")) %>%
    dplyr::group_by(STATION_NUMBER) %>%
-   dplyr::mutate(Dates_above18threshold = list(paste0(unique(date_dmy)))) %>%
+   dplyr::mutate(Dates_above18threshold = list(paste0(unique(Date_format)))) %>%
    dplyr::select(STATION_NUMBER, `Was the site warmer than 18degC in the last 7 days?`, Dates_above18threshold) %>%
    unique()
+
 
  # Join all together
  temp_data_1 <- full_join(maxtemp_7daymean, maxtemp_24hours)
@@ -303,7 +306,7 @@ drought_statistics <- function(stations){
 
  # Assemble table of drought - relevant meta data and statistics
  table_out <- pct_flow_instant_tbl_data %>%
-  dplyr::select(-geometry,  -`%tile-7day_mean`) %>%
+  dplyr::select( -`%tile-7day_mean`) %>%
   dplyr::arrange(`%tile-last24`) %>%
   dplyr::rename(`Last 24 hour Q (m3/s)` = Q_24hours,
                 `Latest 7 Day Q (m3/s)` = Q7_value,
@@ -326,13 +329,13 @@ drought_statistics <- function(stations){
   dplyr::mutate(`Percent of Daily Mean Q7 (%; Historic Mean Q7 in m3/s)` = paste0(`Percent of Daily Mean Q7 (%)`, " (", `Historic Mean Q7 for today`, ")")) %>%
   dplyr::mutate(`Percent of Daily Median Q7 (%; Historic Median Q7 in m3/s)` = paste0(`Percent of Daily Median Q7 (%)`, " (", `Historic Mean Q7 for today`, ")")) %>%
   dplyr::select(-`Percent of Daily Mean Q7 (%)`, -`Historic Mean Q7 for today`, -`Percent of Daily Median Q7 (%)`, -`Historic Median Q7 for today`) %>%
-  dplyr::select(`Station Name`, `ID`, `Record Length`, `Basin Area (km2)`, `Regulation Status`,
+  dplyr::select(`Station Name`, `ID`, `Record Length`, `Basin Area (km2)`, `Regulation Status`, `LATITUDE`, `LONGITUDE`,
                 `Last 24 hour Q (m3/s)`, `Percentile - Last 24 Hour Q`, pct_bin_24hours,
                 `Latest 7 Day Q (m3/s)`, `Percentile - Q7`,  pct_bin_7day,
                 `Percent of Daily Mean Q7 (%; Historic Mean Q7 in m3/s)`,
                 `Percent of Daily Median Q7 (%; Historic Median Q7 in m3/s)`,
                 `Historic Min 7 Day Q (m3/s)`,
-                `MEAN MAD (m^3/s)`, `% MAD`,
+                `MEAN MAD (m^3/s)`, `% MAD`, MAD_bin,
                 `Max temp from last 7 days (degC)`, `Max temp over last 24 hours (degC)`, `Dates above 23 degC in last 7 days`,`Dates above 18 degC in last 7 days`,
                 `Date`)
 }
