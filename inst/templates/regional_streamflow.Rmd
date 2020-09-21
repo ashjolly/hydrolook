@@ -88,7 +88,7 @@ options(knitr.table.format = params$table_format)
 
 
 
-```{r load}
+```{r load, include=FALSE}
 ## For testing
 #params <- tibble(date = Sys.Date(),region = "West Coast Natural Resource Region")
 
@@ -104,7 +104,7 @@ stns_sf <-  st_as_sf(
 ```
 
 
-```{r clean}
+```{r clean, message = FALSE, warnings = FALSE, include = FALSE}
 
 # Drought polugons
 # -------------------------------
@@ -310,9 +310,9 @@ if (params$table_format == "html") {
    addProviderTiles("Esri.WorldStreetMap") %>%
    fitBounds(48, 50, -139, -120) %>%
    setView( lng = -126, lat = 54.2, zoom = 5 ) %>%
-   addMapPane("polygons", zIndex = 410) %>% # order so the polygons are above the drought monitor. Lower number puts the layer closer to the bottom
+   addMapPane("polygons", zIndex = 405) %>% # order so the polygons are above the drought monitor. Lower number puts the layer closer to the bottom
    addMapPane("Drought Polygons", zIndex = 400) %>%
-   addMapPane("Streamflowpoints", zIndex = 410) %>%
+   addMapPane("Streamflow - Seven Day Percentiles", zIndex = 410) %>%
    addLayersControl(baseGroups = c("Drought Polygons"),
                    options = layersControlOptions(collapsed = FALSE)) %>%
    addLayersControl(overlayGroups = c("Drought Polygons"),
@@ -320,19 +320,21 @@ if (params$table_format == "html") {
    addPolygons(data = spdf_select,
               group = "Drought Polygons",
               weight = 3,
-              color = '#696969',
+              color = '#2900b6',
               fillColor = '#white', fillOpacity = 0, # completely opaque drought polygons for now
-              highlightOptions = highlightOptions(color = "black", weight = 3,
+              highlightOptions = highlightOptions(color = '#00cccc', weight = 3,
                                                   bringToFront = FALSE),
-              label = ~spdf_select@data$BasinName)  %>%
+              label = ~spdf_select@data$BasinName,
+              options = pathOptions(pane = "Drought Polygons"))  %>%
    addPolygons(data = region_watershed_interactive,
               group = "polygons",
               weight = 3,
               color = '#696969',
-              fillColor = '#696969', fillOpacity = 0.1, # completely opaque drought polygons for now
+              fillColor = '#696969', fillOpacity = 0.1, 
               highlightOptions = highlightOptions(color = "black", weight = 3,
                                                   bringToFront = FALSE),
-              label = "West Coast Resource Region") %>%
+              label = "West Coast Resource Region",
+              options = pathOptions(pane = "polygons")) %>%
    addCircleMarkers(data = interactive_data,
                    lng = ~LONGITUDE, lat = ~LATITUDE,
                    group = "Streamflow - Seven Day Percentiles",
@@ -343,7 +345,8 @@ if (params$table_format == "html") {
                    popup = paste0(interactive_data$`Station.Name`,", ", table_out$`ID`, "<br>",
                             "Seven Day Q (m3/s) = ", round(interactive_data$Latest.7.Day.Q..m3.s., digits = 2), "<br>", 
                             "Percentile Category: ", interactive_data$pct_bin_7day),
-                   label = ~paste0(interactive_data$`Station.Name`,", ", table_out$`ID`, " ", interactive_data$pct_bin_7day)) %>%
+                   label = ~paste0(interactive_data$`Station.Name`,", ", table_out$`ID`, " ", interactive_data$pct_bin_7day),
+              options = pathOptions(pane = "Streamflow - Seven Day Percentiles")) %>%
      addLegend(colors = naww_pal,
             labels = expected,
             title = paste0("7Day Streamflow Percentile Colours")) 
@@ -535,36 +538,39 @@ if (params$table_format == "html") {
   # PLot interactive plot
   leaflet() %>%
    addProviderTiles("Esri.WorldStreetMap") %>%
-   #addProviderTiles(providers$Esri.WorldStreetMap) %>%
    fitBounds(48, 50, -139, -120) %>%
    setView( lng = -126, lat = 54.2, zoom = 5 ) %>%
-   addMapPane("polygons", zIndex = 410) %>% # order so the ploygons are above the drought monitor. Lower number puts the layer closer to the bottom
-   addMapPane("CDM", zIndex = 400) %>%
-   addMapPane("Streamflowpoints", zIndex = 410) %>%
-   addLayersControl(baseGroups = c("Drought Polygons", 
-                                   "All sites - % MAD",
-                                   "Sites with % MAD < 10%"),
-                   options = layersControlOptions(collapsed = FALSE)) %>%
-   addLayersControl(overlayGroups = c("Drought Polygons",
-                                      "All sites - % MAD",
-                                   "Sites with % MAD < 10%"),
-                   options = layersControlOptions(collapsed = F)) %>%
+   addMapPane("polygons", zIndex = 400) %>% # Order polygons and points. Lower number puts the layer closer to the bottom
+   addMapPane("Drought Polygons", zIndex = 410) %>%
+   addMapPane("All sites - % MAD", zIndex = 420) %>%
+   addMapPane("Sites with % MAD < 10%", zIndex = 430) %>%
+   addLayersControl(baseGroups = c("All sites - % MAD",
+                                   "Sites with % MAD < 10%",
+                                   "Drought Polygons"),
+                   options = layersControlOptions(collapsed = TRUE)) %>%
+   addLayersControl(overlayGroups = c("All sites - % MAD",
+                                   "Sites with % MAD < 10%",
+                                   "Drought Polygons"),
+                   options = layersControlOptions(collapsed = T)) %>%
    addPolygons(data = spdf_select,
               group = "Drought Polygons",
               weight = 3,
-              color = '#696969',
+              color = '#2900b6',
               fillColor = '#white', fillOpacity = 0, # completely opaque drought polygons for now
-              highlightOptions = highlightOptions(color = "black", weight = 3,
+              highlightOptions = highlightOptions(color = '#00cccc', weight = 3,
                                                   bringToFront = FALSE),
-              label = ~spdf_select@data$BasinName) %>%
+              label = ~spdf_select@data$BasinName,
+              options = pathOptions(pane = "Drought Polygons")) %>%
    addPolygons(data = region_watershed_interactive,
               group = "polygons",
               weight = 3,
               color = '#696969',
               fillColor = "white", fillOpacity = 0, # completely opaque drought polygons for now
-              highlightOptions = highlightOptions(color = "black", weight = 3,
+              highlightOptions = highlightOptions(color = "black", 
+                                                  weight = 3,
                                                   bringToFront = FALSE),
-              label = "West Coast Resource Region") %>%
+              label = "West Coast Resource Region",
+              options = pathOptions(pane = "polygons")) %>%
    addCircleMarkers(data = interactive_data,
                    lng = ~LONGITUDE, lat = ~LATITUDE,
                    group = "All sites - % MAD",
@@ -575,7 +581,8 @@ if (params$table_format == "html") {
                    popup = paste0(interactive_data$`Station.Name`,", ", interactive_data$`ID`, "<br>",
                             "% MAD = ", round(interactive_data$X..MAD, digits = 2), "<br>", 
                             "Percentile Category: ", interactive_data$MAD_bin),
-                   label = ~paste0(interactive_data$`Station.Name`,", ", interactive_data$`ID`, "; % MAD = ", round(interactive_data$X..MAD, digits = 2))) %>%
+                   label = ~paste0(interactive_data$`Station.Name`,", ", interactive_data$`ID`, "; % MAD = ", round(interactive_data$X..MAD, digits = 2)),
+              options = pathOptions(pane = "All sites - % MAD")) %>%
   addCircleMarkers(data = interactive_data_10,
                    lng = ~LONGITUDE, lat = ~LATITUDE,
                    group = "Sites with % MAD < 10%",
@@ -586,7 +593,8 @@ if (params$table_format == "html") {
                    popup = paste0(interactive_data_10$`Station.Name`,", ", interactive_data_10$`ID`, "<br>",
                             "% MAD = ", round(interactive_data_10$X..MAD, digits = 2), "<br>", 
                             "Percentile Category: ", interactive_data_10$MAD_bin),
-                   label = ~paste0(interactive_data_10$`Station.Name`,", ", interactive_data_10$`ID`, "; % MAD = ", round(interactive_data_10$X..MAD, digits = 2))) %>%
+                   label = ~paste0(interactive_data_10$`Station.Name`,", ", interactive_data_10$`ID`, "; % MAD = ", round(interactive_data_10$X..MAD, digits = 2)),
+              options = pathOptions(pane = "Sites with % MAD < 10%")) %>%
      addLegend(colors = naww_pal_MAD,
             labels = MAD_levels,
             title = paste0("% MAD")) 
@@ -643,8 +651,7 @@ The recommended mean weekly maximum temperature for the protection of all fish s
 Reaching either one of these thresholds may trigger fisheries closures and water use restrictions within the  affected MUs. Table below shows stations with a maximum daily temperature above 18degC.
 
 ``` {r watertempmaps}
-# Maps
-
+# Maps - assemble data
 table_out_temp <- table_out %>%
   dplyr::filter(!is.na(`Max temp from last 7 days (degC)`)) %>%
     dplyr::mutate(temp_bin = case_when( # Add in the % MAD categories - as per the RFC website
@@ -654,6 +661,7 @@ table_out_temp <- table_out %>%
      `Max temp from last 7 days (degC)` >= 17 & `Max temp from last 7 days (degC)` < 18 ~ "17 to 18",
      `Max temp from last 7 days (degC)` >= 18 & `Max temp from last 7 days (degC)` < 19 ~ "18 to 19",
      `Max temp from last 7 days (degC)` >= 19 & `Max temp from last 7 days (degC)` < 20 ~ "19 to 20",
+     `Max temp from last 7 days (degC)` >= 20 & `Max temp from last 7 days (degC)` < 21 ~ "20 to 21",
      `Max temp from last 7 days (degC)` >= 21 & `Max temp from last 7 days (degC)` < 22 ~ "21 to 22",
      `Max temp from last 7 days (degC)` >= 22 & `Max temp from last 7 days (degC)` < 23 ~ "22 to 23",
      `Max temp from last 7 days (degC)` > 23 ~ "> or equal to 23"
@@ -738,16 +746,17 @@ if (params$table_format == "html") {
           dplyr::filter(`Mean.Max.Daily.temp..last.7.days..deg.C.` <= 200) 
   
   # get colour palette
-  naww_pal_temp <- c("#FFFFFF", 
-                     "#4575B4", # blue
-                     "#B0E0E6", # Light blue
-                     "#FFFFB2", 
-                     "#FED976",
-                     "#FEB24C",
-                     "#FD8D3C", 
-                     "#FC4E2A",
-                     "#B10026") #Dark red
-  temp_levels <- c("Not ranked", "<16 degC", "16 to 17", "17 to 18", "18 to 19", "19 to 20", "21 to 22", "22 to 23", "> or equal to 23")
+  naww_pal_temp <- c("#FFFFFF", # Npt ranked
+                     "#4575B4", # blue - less than 16
+                     "#B0E0E6", # Light blue - 16 tp 17
+                     "#FFFFB2", # light yellow - 17 to 18
+                     "#FED976", # darker yellow - 18 to 19
+                     "#FEB24C", # orange - 19 to 20
+                     "#FD8D3C", # darker orange- 20 to 21
+                     "#FC4E2A", # red - 21 to 22
+                     "#d62703", # dark red - 22 to 23
+                     "#B10026") #Dark red > 23
+  temp_levels <- c("Not ranked", "<16 degC", "16 to 17", "17 to 18", "18 to 19", "19 to 20", "20 to 21", "21 to 22", "22 to 23", "> or equal to 23")
   pal_temp <- colorFactor(palette = naww_pal_temp, levels = temp_levels)
   
   region_watershed_interactive <- st_transform(region_watershed, CRS("+init=epsg:4326")) # transform to Google Mercator projection
@@ -756,26 +765,28 @@ if (params$table_format == "html") {
   leaflet() %>%
    addProviderTiles("Esri.WorldStreetMap") %>%
    fitBounds(48, 50, -139, -120) %>%
-   setView( lng = -126, lat = 54.2, zoom = 5 ) %>%
-   addMapPane("polygons", zIndex = 410) %>% # order so the ploygons are above the drought monitor. Lower number puts the layer closer to the bottom
-   addMapPane("CDM", zIndex = 400) %>%
-   addMapPane("Streamflowpoints", zIndex = 410) %>%
-   addLayersControl(baseGroups = c("Drought Polygons",
-                                   "All sites - 7 Day Mean Max Daily Temp",
-                                   ">18 Deg C - 7 Day Mean Max Daily Temp"),
+   setView( lng = -126, lat = 54.2, zoom = 5) %>%
+   addMapPane("Drought Basins", zIndex = 410) %>% # order so the ploygons are above the drought monitor. Lower number puts the layer closer to the bottom
+   addMapPane("Drought Polygons", zIndex = 400) %>%
+   addMapPane("All sites - 7 Day Mean Max Daily Temp", zIndex = 420) %>%
+   addMapPane(">18 Deg C - 7 Day Mean Max Daily Temp", zIndex = 430) %>%
+   addLayersControl(baseGroups = c("All sites - 7 Day Mean Max Daily Temp",
+                                   ">18 Deg C - 7 Day Mean Max Daily Temp",
+                                   "Drought Polygons"),
                    options = layersControlOptions(collapsed = FALSE)) %>%
-   addLayersControl(overlayGroups = c("Drought Polygons", 
-                                      "All sites - 7 Day Mean Max Daily Temp",
-                                   ">18 Deg C - 7 Day Mean Max Daily Temp"),
+   addLayersControl(overlayGroups = c("All sites - 7 Day Mean Max Daily Temp",
+                                   ">18 Deg C - 7 Day Mean Max Daily Temp",
+                                   "Drought Polygons"),
                    options = layersControlOptions(collapsed = F)) %>%
    addPolygons(data = spdf_select,
               group = "Drought Polygons",
               weight = 3,
-              color = '#696969',
+              color = '#2900b6',
               fillColor = '#white', fillOpacity = 0, # completely opaque drought polygons for now
-              highlightOptions = highlightOptions(color = "black", weight = 3,
+              highlightOptions = highlightOptions(color = '#00cccc', weight = 3,
                                                   bringToFront = FALSE),
-              label = ~spdf_select@data$BasinName) %>%
+              label = ~spdf_select@data$BasinName,
+              options = pathOptions(pane = "Drought Polygons")) %>% #Order the layers
    addPolygons(data = region_watershed_interactive,
               group = "Drought Basins",
               weight = 3,
@@ -783,7 +794,8 @@ if (params$table_format == "html") {
               fillColor = "white", fillOpacity = 0, # completely opaque drought polygons for now
               highlightOptions = highlightOptions(color = "black", weight = 3,
                                                   bringToFront = FALSE),
-              label = "West Coast Resource Region") %>%
+              label = "West Coast Resource Region",
+              options = pathOptions(pane = "Drought Basins")) %>%
    addCircleMarkers(data = interactive_data,
                    lng = ~LONGITUDE, lat = ~LATITUDE,
                    group = "All sites - 7 Day Mean Max Daily Temp",
@@ -797,7 +809,8 @@ if (params$table_format == "html") {
                             "Dates above 18degC (last 7 days) = ", interactive_data$Dates.above.18.degC.in.last.7.days, "<br>", 
                             "Dates above 23degC (last 7 days) = ", interactive_data$Dates.above.23.degC.in.last.7.days),
                    label = ~paste0(interactive_data$`Station.Name`,", ", interactive_data$`ID`, 
-                                   "; 7 Day Max Daily Temp (degC) = ", round(interactive_data$Mean.Max.Daily.temp..last.7.days..deg.C., digits = 2))) %>%
+                                   "; 7 Day Max Daily Temp (degC) = ", round(interactive_data$Mean.Max.Daily.temp..last.7.days..deg.C., digits = 2)),
+                   options = pathOptions(pane = "All sites - 7 Day Mean Max Daily Temp")) %>%
   addCircleMarkers(data = interactive_data_18,
                    lng = ~LONGITUDE, lat = ~LATITUDE,
                    group = ">18 Deg C - 7 Day Mean Max Daily Temp",
@@ -811,7 +824,8 @@ if (params$table_format == "html") {
                             "Dates above 18degC (last 7 days) = ", interactive_data$Dates.above.18.degC.in.last.7.days, "<br>", 
                             "Dates above 23degC (last 7 days) = ", interactive_data$Dates.above.23.degC.in.last.7.days),
                    label = ~paste0(interactive_data$`Station.Name`,", ", interactive_data$`ID`, 
-                                   "; 7 Day Max Daily Temp (degC) = ", round(interactive_data$Mean.Max.Daily.temp..last.7.days..deg.C., digits = 2)))  %>%
+                                   "; 7 Day Max Daily Temp (degC) = ", round(interactive_data$Mean.Max.Daily.temp..last.7.days..deg.C., digits = 2)),
+                   options = pathOptions(pane = ">18 Deg C - 7 Day Mean Max Daily Temp"))  %>%
      addLegend(colors = naww_pal_temp,
             labels = temp_levels,
             title = paste0("7 Day Max Daily Temp")) 
@@ -826,7 +840,8 @@ if (params$table_format == "html") {
 
 
 ``` {r watertemp}
-
+watertemp <- watertemp %>%
+  dplyr::select(-LATITUDE, -LONGITUDE, -temp_bin)
 
 if (params$table_format == "latex") {
   watertemp %>%
