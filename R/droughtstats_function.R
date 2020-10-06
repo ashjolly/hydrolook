@@ -54,8 +54,10 @@ drought_statistics <- function(stations){
   filter(RECORD_LENGTH >=20) %>%
   pull(STATION_NUMBER)
 
- # Query realtime data
- rl_data <- realtime_dd(q_stns)
+ # Query realtime data - doesn't work for "08KH019", "08MC039"
+ #q_stns <- q_stns[!(q_stns %in% c("08KH019", "08MC039"))]
+
+ rl_data <- tidyhydat::realtime_dd(station_number = q_stns)
 
  ## Find most recent instantaneous discharge value
  rl_data_instant <- rl_data %>%
