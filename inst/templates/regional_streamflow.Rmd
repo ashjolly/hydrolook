@@ -9,7 +9,7 @@ output:
   self_contained: no
 params:
   region:
-    value: "West Coast Natural Resource Region"
+    value: ""
   date:
     value: !r Sys.Date()
   table_format:
@@ -106,7 +106,7 @@ stns_sf <-  st_as_sf(
 
 ```{r clean, message = FALSE, warnings = FALSE, include = FALSE}
 
-# Drought polugons
+# Drought polygons
 # -------------------------------
 # LOAD BASIN SHAPEFILE AND REPROJECT
 # -------------------------------
@@ -130,7 +130,7 @@ basins <- row.names(df.cent)
 rownames(df.cent) <- c()
 
 # Get only for the region
-spdf_select <- spdf[spdf@data$BasinName %in% c("Central Coast", "West Vancouver Island", "East Vancouver Island", "Haida Gwaii"), ]
+spdf_select <- spdf
 
 ### Spatial Cleaning
 
@@ -146,9 +146,9 @@ wsc_drainages <- ms_simplify(wsc_drainages())
 
 #region_watershed <- st_intersection(select(nr_regions_sub, SHAPE), wsc_drainages()) %>%
 region_watershed <- st_intersection(select(nr_regions_sub, geometry), wsc_drainages()) %>%
-  group_by(SUB_DRAINAGE_AREA_NAME) %>%
-  summarise() %>%
-  ms_simplify()
+  dplyr::group_by(SUB_DRAINAGE_AREA_NAME) %>%
+  dplyr::summarise() #%>%
+  #ms_simplify()
 
 stns_region <- st_join(stns_sf, nr_regions_sub, left = FALSE) 
 
@@ -180,8 +180,8 @@ city <- bc_cities() %>%
  cities$nudge_x <- 20000
  cities$nudge_y <- 15000
  
- cities_wc <- cities %>%
-   dplyr::filter(NAME %in% c("Vancouver", "Victoria", "Nanaimo", "Campbell River", "Bella Coola"))
+ cities_wc <- cities 
+   #dplyr::filter(NAME %in% cities_regions) if you want to filter for specific cities
 
 
 ```
@@ -310,8 +310,8 @@ if (params$table_format == "html") {
    addProviderTiles("Esri.WorldStreetMap") %>%
    fitBounds(48, 50, -139, -120) %>%
    setView( lng = -126, lat = 54.2, zoom = 5 ) %>%
-   addMapPane("polygons", zIndex = 405) %>% # order so the polygons are above the drought monitor. Lower number puts the layer closer to the bottom
-   addMapPane("Drought Polygons", zIndex = 400) %>%
+   addMapPane("polygons", zIndex = 400) %>% # order so the polygons are above the drought monitor. Lower number puts the layer closer to the bottom
+   addMapPane("Drought Polygons", zIndex = 405) %>%
    addMapPane("Streamflow - Seven Day Percentiles", zIndex = 410) %>%
    addLayersControl(baseGroups = c("Drought Polygons"),
                    options = layersControlOptions(collapsed = FALSE)) %>%
@@ -330,7 +330,7 @@ if (params$table_format == "html") {
               group = "polygons",
               weight = 3,
               color = '#696969',
-              fillColor = '#696969', fillOpacity = 0.1, 
+              fillColor = '#696969', fillOpacity = 0.3, 
               highlightOptions = highlightOptions(color = "black", weight = 3,
                                                   bringToFront = FALSE),
               label = "West Coast Resource Region",
@@ -565,7 +565,7 @@ if (params$table_format == "html") {
               group = "polygons",
               weight = 3,
               color = '#696969',
-              fillColor = "white", fillOpacity = 0, # completely opaque drought polygons for now
+              fillColor = '#696969', fillOpacity = 0.3, 
               highlightOptions = highlightOptions(color = "black", 
                                                   weight = 3,
                                                   bringToFront = FALSE),
@@ -766,8 +766,8 @@ if (params$table_format == "html") {
    addProviderTiles("Esri.WorldStreetMap") %>%
    fitBounds(48, 50, -139, -120) %>%
    setView( lng = -126, lat = 54.2, zoom = 5) %>%
-   addMapPane("Drought Basins", zIndex = 410) %>% # order so the ploygons are above the drought monitor. Lower number puts the layer closer to the bottom
-   addMapPane("Drought Polygons", zIndex = 400) %>%
+   addMapPane("Drought Basins", zIndex = 400) %>% # order so the ploygons are above the drought monitor. Lower number puts the layer closer to the bottom
+   addMapPane("Drought Polygons", zIndex = 410) %>%
    addMapPane("All sites - 7 Day Mean Max Daily Temp", zIndex = 420) %>%
    addMapPane(">18 Deg C - 7 Day Mean Max Daily Temp", zIndex = 430) %>%
    addLayersControl(baseGroups = c("All sites - 7 Day Mean Max Daily Temp",
@@ -784,16 +784,16 @@ if (params$table_format == "html") {
               color = '#2900b6',
               fillColor = '#white', fillOpacity = 0, # completely opaque drought polygons for now
               highlightOptions = highlightOptions(color = '#00cccc', weight = 3,
-                                                  bringToFront = FALSE),
+                                                  bringToFront = F),
               label = ~spdf_select@data$BasinName,
               options = pathOptions(pane = "Drought Polygons")) %>% #Order the layers
    addPolygons(data = region_watershed_interactive,
               group = "Drought Basins",
               weight = 3,
               color = '#696969',
-              fillColor = "white", fillOpacity = 0, # completely opaque drought polygons for now
+              fillColor = '#696969', fillOpacity = 0.3, 
               highlightOptions = highlightOptions(color = "black", weight = 3,
-                                                  bringToFront = FALSE),
+                                                  bringToFront = F),
               label = "West Coast Resource Region",
               options = pathOptions(pane = "Drought Basins")) %>%
    addCircleMarkers(data = interactive_data,
