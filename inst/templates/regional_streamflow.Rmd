@@ -4,12 +4,13 @@ output:
     toc: true
     fig_caption: yes
     toc_float: true
+    df_print: paged
   pdf_document:
     fig_caption: yes
   self_contained: no
 params:
   region:
-    value: ""
+    value: "Thompson-Okanagan Natural Resource Region"
   date:
     value: !r Sys.Date()
   table_format:
@@ -89,8 +90,6 @@ options(knitr.table.format = params$table_format)
 
 
 ```{r load, include=FALSE}
-## For testing
-#params <- tibble(date = Sys.Date(),region = "West Coast Natural Resource Region")
 
 ## Load realtime stations and convert to spatial object
 stns_sf <-  st_as_sf(
@@ -206,11 +205,13 @@ cat(format(Sys.Date(), '%d %B, %Y'))
 
 The information is taken from real time data recorded at WSC stations and is based on percentiles of long term  historical flows for that day. A percentile is a value on a scale of one hundred that indicates the percent of a distribution that is equal to or below it. In general:
 
-- A streamflow which is greater than the 75th percentile is considered above normal
-- A streamflow which is between 25th and 75th percentiles is considered normal
-- A streamflow which is less than the 25 percentile is considered below normal
-- A streamflow which is less than 10 percentile is considered much below normal
-- The flow category "Low" indicates that the estimated streamflow is the lowest value ever measured for the day of the year
+- The flow category "High" indicates that the estimated streamflow is the <span style="color: #000000;">highest value</span> ever measured for the day of the year
+- A streamflow which is greater than the 90th percentile is considered above <span style="color: #0003F6;">much above normal</span>
+- A streamflow which is between  75th percentile and 90th percentile is considered  <span style="color: #46DED2;">above normal</span>
+- A streamflow which is between 25th and 75th percentiles is considered <span style="color: #08FA09;">normal</span>
+- A streamflow which is less than the 25 percentile is considered <span style="color: #FEA116;">below normal</span>
+- A streamflow which is less than 10 percentile is considered <span style="color: #B31F23;">much below normal</span>
+- The flow category "Low" indicates that the estimated streamflow is the <span style="color: #F90010;">lowest value</span> ever measured for the day of the year
 
 The below map shows percentile data for WSC stations using the rolling average of the last 7 days of discharge data from each station:
 
@@ -333,7 +334,7 @@ if (params$table_format == "html") {
               fillColor = '#696969', fillOpacity = 0.3, 
               highlightOptions = highlightOptions(color = "black", weight = 3,
                                                   bringToFront = FALSE),
-              label = "West Coast Resource Region",
+              label = params$region,
               options = pathOptions(pane = "polygons")) %>%
    addCircleMarkers(data = interactive_data,
                    lng = ~LONGITUDE, lat = ~LATITUDE,
@@ -349,7 +350,7 @@ if (params$table_format == "html") {
               options = pathOptions(pane = "Streamflow - Seven Day Percentiles")) %>%
      addLegend(colors = naww_pal,
             labels = expected,
-            title = paste0("7Day Streamflow Percentile Colours")) 
+            title = paste0("7 Day Streamflow Percentile Colours")) 
                    
 }
 
@@ -358,19 +359,18 @@ if (params$table_format == "html") {
 \newpage
 \blandscape
 
-### Stations **much below normal** - Percentiles
+### Stations **much below normal** - Seven Day Average Streamflow Percentiles
 
-The table below lists stations that are below their 10th percentile in terms of the last 24 hours of discharge data. If a location is not listed here there are no immediate low streamflow concerns. 
+The table below lists stations that are below their 10th percentile in terms of the seven day discharge data for today. If a location is not listed here there are no immediate low streamflow concerns. 
 ```{r belownormal}
 much_below_normal_tbl <- as.data.frame(table_out) %>%
-  dplyr::filter(pct_bin_24hours %in% c("Low","Much below normal (<10)")) %>%
+  dplyr::filter(pct_bin_7day %in% c("Low","Much below normal (<10)")) %>%
   dplyr::select(`Station Name`, ID, `Regulation Status`, 
                 `Last 24 hour Q (m3/s)`, `Percentile - Last 24 Hour Q`, pct_bin_24hours,
                 `Latest 7 Day Q (m3/s)`, `Percentile - Q7`, pct_bin_7day) %>%
   dplyr::rename(`Percentile Category - Last 24 Hour Q` = pct_bin_24hours, 
                 `Percentile Category - 7 Day Q` = pct_bin_7day) %>%
-  dplyr::arrange(`Percentile - Last 24 Hour Q`, `Percentile - Q7`) 
-
+  dplyr::arrange(`Percentile - Q7`, `Percentile - Last 24 Hour Q`) 
 
 
 #date_annot <- unique(much_below_normal_tbl$Date)
@@ -390,39 +390,42 @@ if (params$table_format == "latex"){
 }
 
 if (params$table_format == "html"){
-  #much_below_normal_tbl %>%
-    #dplyr::mutate(`Percentile Category - Last 24 Hour Q` = cell_spec(`Percentile Category - Last 24 Hour Q`, "html", 
-    #                                                                 color = ifelse(`Percentile Category - Last 24 Hour Q`  == "Low", "#F90010",
-    #                                                       ifelse(`Percentile Category - Last 24 Hour Q` == "Much below normal (<10)", "#B31F23" ,
-    #                                                              ifelse(`Percentile Category - Last 24 Hour Q` == "Below Normal (10-24)" , "#FEA116", 
-    #                                                                     ifelse(`Percentile Category - Last 24 Hour Q` == "Normal (25-75)" , "#08FA09", 
-    #                                                                            ifelse(`Percentile Category - Last 24 Hour Q` == "Above normal (76-90)" , "#46DED2", 
-    #                                                                                   ifelse(`Percentile Category - Last 24 Hour Q` == "Much above normal (>90)" , "#0003F6",
-    #                                                                                          "#000000")))))))) %>%
-    #kable(format = "html", 
-    #      digits = 2, 
-    #      align = rep('c'), 
-    #      booktabs = T,
-    #      caption = paste0(params$region, " Low Flow Stations - ", date_annot)) %>%
-    #kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
-  
-  
   much_below_normal_tbl %>%
-   kable(format = "html", 
+    dplyr::mutate(`Percentile Category - Last 24 Hour Q` = cell_spec(`Percentile Category - Last 24 Hour Q`, "html",
+                                            color = ifelse(`Percentile Category - Last 24 Hour Q`  == "Low", "#F90010",
+                                                           ifelse(`Percentile Category - Last 24 Hour Q` == "Much below normal (<10)", "#B31F23" ,
+                                                                  ifelse(`Percentile Category - Last 24 Hour Q` == "Below Normal (10-24)" , "#FEA116", 
+                                                                         ifelse(`Percentile Category - Last 24 Hour Q` == "Normal (25-75)" , "#08FA09", 
+                                                                                ifelse(`Percentile Category - Last 24 Hour Q` == "Above normal (76-90)" , "#46DED2", 
+                                                                                       ifelse(`Percentile Category - Last 24 Hour Q` == "Much above normal (>90)" , "#0003F6",
+                                                                                              "#000000")))))))) %>%
+    dplyr::mutate(`Percentile Category - 7 Day Q` = cell_spec(`Percentile Category - 7 Day Q`, "html",
+                                            color = ifelse(`Percentile Category - 7 Day Q`  == "Low", "#F90010",
+                                                           ifelse(`Percentile Category - 7 Day Q` == "Much below normal (<10)", "#B31F23" ,
+                                                                  ifelse(`Percentile Category - 7 Day Q` == "Below Normal (10-24)" , "#FEA116", 
+                                                                         ifelse(`Percentile Category - 7 Day Q` == "Normal (25-75)" , "#08FA09", 
+                                                                                ifelse(`Percentile Category - 7 Day Q` == "Above normal (76-90)" , "#46DED2", 
+                                                                                       ifelse(`Percentile Category - 7 Day Q` == "Much above normal (>90)" , "#0003F6",
+                                                                                              "#000000")))))))) %>%
+    kableExtra::kbl(format = "html", 
           digits = 2, 
           align = rep('c'), 
-          booktabs = T) %>%
+          booktabs = T,
+          escape = F,
+          row.names = FALSE) %>%
           #caption = paste0(params$region, " Low Flow Stations - ", date_annot)) %>%
-   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+    kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
   
 }
+
+
 
 ```
 
 
 ## Long-Term Mean Annual Discharge (% LT MAD)
 
-Environmental flow needs for fish  during the summer will range from juvenile rearing flows near 10-20 % (preferred) LT MAD to adult salmon/char passage flows  (>20%LT MAD) required prior to spawning.  Sub-standard flows (<10%LT MAD) can affect fish populations by reducing the area and quality of riffle habitats that generate fish food and aeration.  Flows nearing 5 % LT MAD  are considered sub-optimal for fish rearing and migration, indicate a degradation of instream habitat and may require  restrictions on water use. This data can be accessed at:  http://bcrfc.env.gov.bc.ca/freshet/map_all_wsc.html.
+Environmental flow needs for fish during the summer will range from juvenile rearing flows near 10-20% (preferred) Long-Term Mean Annual Discharge (LT MAD) to adult salmon/char passage flows (>20% LT MAD) required prior to spawning. Sub-standard flows (<10% LT MAD) can affect fish populations by reducing the area and quality of riffle habitats that generate fish food and aeration. Flows nearing 5% LT MAD are considered sub-optimal for fish rearing and migration, indicate a degradation of instream habitat and may require  restrictions on water use. This data can be accessed at:  http://bcrfc.env.gov.bc.ca/freshet/map_all_wsc.html.
 
 ``` {r MADmap, fig.height = 5.8, fig.width=6.4, fig.align="center"}
 
@@ -569,7 +572,7 @@ if (params$table_format == "html") {
               highlightOptions = highlightOptions(color = "black", 
                                                   weight = 3,
                                                   bringToFront = FALSE),
-              label = "West Coast Resource Region",
+              label = params$region,
               options = pathOptions(pane = "polygons")) %>%
    addCircleMarkers(data = interactive_data,
                    lng = ~LONGITUDE, lat = ~LATITUDE,
@@ -604,8 +607,9 @@ if (params$table_format == "html") {
 
 ```
 
-### Table of Stations Below 10% MAD
-Any stations showing values of less than 10% MAD are highlighted  in the table below. The report is showing conditions as of this morning.
+### Table of Stations Below 10% LT MAD
+Any stations with LT MAD values of less than or equal to <span style= "color: #B31F23;">10% LT MAD</span> are shown in the table below; sites below <span style = "color: #F90010;">5% MAD</span> are highlighted. The report shows conditions as of today.
+
 
 ```{r madtable}
 
@@ -626,20 +630,17 @@ if (params$table_format == "latex") {
   
 if (params$table_format == "html"){
   MAD_below %>%
-   # dplyr::mutate(`Percentile Category - Last 24 Hour Q` = cell_spec(`Percentile Category - Last 24 Hour Q`, "html", 
-  #                                                                   color = ifelse(`Percentile Category - Last 24 Hour Q`  == "Low", "#F90010",
-  #                                                         ifelse(`Percentile Category - Last 24 Hour Q` == "Much below normal (<10)", "#B31F23" ,
-  ##                                                                ifelse(`Percentile Category - Last 24 Hour Q` == "Below Normal (10-24)" , "#FEA116", 
-  #                                                                       ifelse(`Percentile Category - Last 24 Hour Q` == "Normal (25-75)" , "#08FA09", 
-  #                                                                              ifelse(`Percentile Category - Last 24 Hour Q` == "Above normal (76-90)" , "#46DED2", 
-  #                                                                                     ifelse(`Percentile Category - Last 24 Hour Q` == "Much above normal (>90)" , "#0003F6",
-  #                                                                                            "#000000")))))))) %>%
-    kable(format = "html", 
+    dplyr::mutate(`% MAD` = cell_spec(`% MAD`, "html",
+                                            color = ifelse(`% MAD`  <= 5, "#F90010",
+                                                           ifelse(`% MAD` > 5 & `% MAD` <= 10, "#B31F23", "#000000")))) %>%
+      kableExtra::kbl(format = "html", 
           digits = 2, 
           align = rep('c'), 
-          booktabs = T) %>%
-          #caption = paste0(params$region, "Stations Below 10% MAD - ", date_annot)) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+          booktabs = T,
+          escape = F,
+          row.names = FALSE) %>%
+          #caption = paste0(params$region, " Low Flow Stations - ", date_annot)) %>%
+    kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
 }
 
 
@@ -647,8 +648,7 @@ if (params$table_format == "html"){
 
 ## Maximum Daily Water Temperature
 
-The recommended mean weekly maximum temperature for the protection of all fish species should not exceed 18oC; maximum daily temperature of 23oC.  
-Reaching either one of these thresholds may trigger fisheries closures and water use restrictions within the  affected MUs. Table below shows stations with a maximum daily temperature above 18degC.
+The recommended mean weekly maximum temperature (which is the mean of the max daily temperatures from the last seven days) for the protection of all fish species should not exceed 18oC and the maximum daily temperature should not exceed 23oC. Reaching either one of these thresholds may trigger fisheries closures and water use restrictions within the affected watersheds. Only a small subset of stations from the Water Survey of Canada collect temperature data in addition to streamflow data; thus the number of sites shown here is much smaller than for streamflow.
 
 ``` {r watertempmaps}
 # Maps - assemble data
@@ -794,7 +794,7 @@ if (params$table_format == "html") {
               fillColor = '#696969', fillOpacity = 0.3, 
               highlightOptions = highlightOptions(color = "black", weight = 3,
                                                   bringToFront = F),
-              label = "West Coast Resource Region",
+              label = params$region,
               options = pathOptions(pane = "Drought Basins")) %>%
    addCircleMarkers(data = interactive_data,
                    lng = ~LONGITUDE, lat = ~LATITUDE,
@@ -838,6 +838,9 @@ if (params$table_format == "html") {
 ```
 
 
+### Table of Stations: 7 Day Maximum Daily Temperature above 18degC
+
+The table below shows stations with a 7-day maximum daily temperature (i.e., the max daily temperature from the past 7 days) above <span style="colour:#B31F23;">18degC</span>. Also shown are the days from the past week in which the maximum daily temperature exceeded either <span style="colour:#B31F23;">18degC</span> or <span style="colour:#F90010;">23degC</span> (critical thresholds for fish health). If no sites are present, all sites with water temperature data show 7-day maximum daily temperatures below 18degC. 
 
 ``` {r watertemp}
 watertemp <- watertemp %>%
@@ -859,20 +862,18 @@ if (params$table_format == "latex") {
 
 if (params$table_format == "html"){
   watertemp %>%
-   # dplyr::mutate(`Percentile Category - Last 24 Hour Q` = cell_spec(`Percentile Category - Last 24 Hour Q`, "html", 
-  #                                                                   color = ifelse(`Percentile Category - Last 24 Hour Q`  == "Low", "#F90010",
-  #                                                         ifelse(`Percentile Category - Last 24 Hour Q` == "Much below normal (<10)", "#B31F23" ,
-  ##                                                                ifelse(`Percentile Category - Last 24 Hour Q` == "Below Normal (10-24)" , "#FEA116", 
-  #                                                                       ifelse(`Percentile Category - Last 24 Hour Q` == "Normal (25-75)" , "#08FA09", 
-  #                                                                              ifelse(`Percentile Category - Last 24 Hour Q` == "Above normal (76-90)" , "#46DED2", 
-  #                                                                                     ifelse(`Percentile Category - Last 24 Hour Q` == "Much above normal (>90)" , "#0003F6",
-  #                                                                                            "#000000")))))))) %>%
-    kable(format = "html", 
+    dplyr::mutate(`Mean Max Daily temp (last 7 days; deg C)` = cell_spec(`Mean Max Daily temp (last 7 days; deg C)`, "html", 
+                                                                     color = ifelse(`Mean Max Daily temp (last 7 days; deg C)`  >= 18, "#B31F23", "#000000"))) %>%
+    dplyr::mutate(`Max temp over last 24 hours (degC)` = cell_spec(`Max temp over last 24 hours (degC)`, "html", 
+                                                                     color = ifelse(`Max temp over last 24 hours (degC)`  >= 23, "#F90010", "#000000"))) %>%
+    kableExtra::kbl(format = "html", 
           digits = 2, 
           align = rep('c'), 
-          booktabs = T) %>%
-          #caption = paste0(params$region, "Stations Above 18degC Water Temp - ", date_annot)) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+          booktabs = T,
+          escape = F,
+          row.names = FALSE) %>%
+          #caption = paste0(params$region, " Low Flow Stations - ", date_annot)) %>%
+    kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
 }
 
 ```
@@ -892,7 +893,9 @@ These statistics include:
   - **Percent of Daily Median Q7**: Percent of the Q7 for today's date compared to the median Q7 value for today's date within the historic record of the station (i.e., Latest 7 Day Q/Historic Median Q7 *100).
   - **Historic Min 7 Day Q**: The minimum 7 day averaged mean daily discharge value for today's date within the historic record (in m3/s).
   - **MEAN MAD (m^3/s) and % MAD**: Flow needs during the  summer will range from juvenile rearing flows near 10-20% (preferred) MAD to adult salmon/char passage flows (>20% MAD) required prior to spawning.  Sub-standard flows (<10% MAD) can affect fish populations by reducing the area and quality of riffle habitats that generate fish food and aeration.  Flows nearing 5% MAD are considered suboptimal for fish rearing and migration, indicate a degradation of instream habitat and may require restrictions on water use. 
-  - **Mean Daily Water Temp**: Mean daily water temperature for today's date. Temperatures greater than 20 degrees C can indicate increased stress on fish populations.
+  - **Mean Max Daily temp (last 7 days; deg C)**: Mean of the max daily temperatures from the past week. Temperatures greater than 18 degrees C can indicate increased stress on fish populations.
+  - **Max temp over last 24 hours (degC)**: Maximum temperature over the last 24 hours (degree C).
+  - **Dates above 23 degC and 18 degC in last 7 days**: Dates from the past week that the stream temperature has gone beyond either 18 or 23 degrees C.
 
 
 ```{r statstable}
@@ -927,12 +930,41 @@ if (params$table_format == "latex"){
 if (params$table_format == "html"){
   table_all %>%
     dplyr::select(-Date) %>%
-    kable(format = "html", 
+    dplyr::mutate(`Percentile Category - Last 24 Hour Q` = cell_spec(`Percentile Category - Last 24 Hour Q`, "html",
+                                            color = ifelse(`Percentile Category - Last 24 Hour Q`  == "Low", "#F90010",
+                                                           ifelse(`Percentile Category - Last 24 Hour Q` == "Much below normal (<10)", "#B31F23" ,
+                                                                  ifelse(`Percentile Category - Last 24 Hour Q` == "Below Normal (10-24)" , "#FEA116", 
+                                                                         ifelse(`Percentile Category - Last 24 Hour Q` == "Normal (25-75)" , "#08FA09", 
+                                                                                ifelse(`Percentile Category - Last 24 Hour Q` == "Above normal (76-90)" , "#46DED2", 
+                                                                                       ifelse(`Percentile Category - Last 24 Hour Q` == "Much above normal (>90)" , "#0003F6",
+                                                                                              "#000000")))))))) %>%
+    dplyr::mutate(`Percentile Category - 7 Day Q` = cell_spec(`Percentile Category - 7 Day Q`, "html",
+                                            color = ifelse(is.na(`Percentile Category - 7 Day Q`), "#000000",
+                                              ifelse(`Percentile Category - 7 Day Q`  == "Low", "#F90010",
+                                                           ifelse(`Percentile Category - 7 Day Q` == "Much below normal (<10)", "#B31F23" ,
+                                                                  ifelse(`Percentile Category - 7 Day Q` == "Below Normal (10-24)" , "#FEA116", 
+                                                                         ifelse(`Percentile Category - 7 Day Q` == "Normal (25-75)" , "#08FA09", 
+                                                                                ifelse(`Percentile Category - 7 Day Q` == "Above normal (76-90)" , "#46DED2", 
+                                                                                       ifelse(`Percentile Category - 7 Day Q` == "Much above normal (>90)" , "#0003F6",
+                                                                                              "#000000"))))))))) %>%
+    dplyr::mutate(`% MAD` = cell_spec(`% MAD`, "html",
+                                    color = ifelse(is.na(`% MAD`), "#000000",
+                                        ifelse(`% MAD`  <= 5, "#F90010",
+                                                           ifelse(`% MAD` > 5 & `% MAD` <= 10, "#B31F23", "#000000"))))) %>%
+    dplyr::mutate(`Mean Max Daily temp (last 7 days; deg C)` = cell_spec(`Mean Max Daily temp (last 7 days; deg C)`, "html", 
+                                                                     color = ifelse(is.na(`Mean Max Daily temp (last 7 days; deg C)`), "#000000",
+                                                                       ifelse(`Mean Max Daily temp (last 7 days; deg C)`  >= 18, "#F90010", "#0003F6")))) %>%
+    dplyr::mutate(`Max temp over last 24 hours (degC)` = cell_spec(`Max temp over last 24 hours (degC)`, "html", 
+                                                                   color = ifelse(is.na(`Max temp over last 24 hours (degC)`), "#000000",
+                                                                     ifelse(`Max temp over last 24 hours (degC)`  >= 23, "#F90010", "#0003F6")))) %>%
+    kableExtra::kbl(format = "html", 
           digits = 2, 
           align = rep('c'), 
-          booktabs = T) %>%
-          #caption = paste0(params$region, " Drought Statistics - ", date_annot))  %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+          booktabs = T,
+          escape = F,
+          row.names = FALSE) %>%
+          #caption = paste0(params$region, " Low Flow Stations - ", date_annot)) %>%
+    kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
     column_spec(20, width = "3cm")
 }
   
