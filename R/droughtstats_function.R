@@ -3,7 +3,30 @@
 # 11Aug2020 Ashlee Jollymore
 # =====================
 
-
+# Load packages
+library(tidyverse)
+library(tmap)
+library(bcmaps)
+library(tidyhydat)
+library(lubridate)
+library(sf)
+library(sp)
+library(rmapshaper)
+library(kableExtra)
+library(knitr)
+library(RcppRoll)
+library(shadowtext)
+library(bcmapsdata)
+library(ggplot2)
+library(dplyr)
+library(purrr)
+library(ggspatial)
+library(ggrepel)
+library(magick)
+library(ggsn)
+library(tidyhydat.ws)
+library(RColorBrewer)
+library(leaflet)
 
 ## Calculate percentiles from tidyhydat extracted data
 ## Limited to current day calculation
