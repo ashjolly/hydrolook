@@ -20,9 +20,10 @@ devtools::install_github('rstudio/rmarkdown')
 
 natural_resource_regions = unique(nr_regions()$ORG_UNIT_NAME)
 
-for(i in 1:length(natural_resource_regions)){
+for (i in 1:length(natural_resource_regions)){
   rmarkdown::render(paste0("C:/Users/AJOLLYMO/RProjects/hydrolook/inst/templates/regional_streamflow.Rmd"),
                     output_file = paste0("C:/Users/AJOLLYMO/RProjects/hydrolook/inst/templates/",
                                          natural_resource_regions[i], "_", Sys.Date(), ".html"),
                     params = list(region = natural_resource_regions[i]))
 }
+
